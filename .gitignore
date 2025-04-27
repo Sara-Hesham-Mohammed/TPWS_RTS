@@ -1,5 +1,6 @@
 # IntelliJ-specific
 .idea/
+.idea\
 *.iml
 out/
 

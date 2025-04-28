@@ -1,6 +1,6 @@
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-public class Main {
+public class main {
     public static void main(String[] args) {
         //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
         // to see how IntelliJ IDEA suggests fixing it.
@@ -11,9 +11,6 @@ public class Main {
             // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
             System.out.println("i = " + i);
         }
-
-
-
 
                 // Create sensor instances
                 SpeedSensor speedSensor = new SpeedSensor(1, 100); // ID 1, speed limit 100 km/h
@@ -47,10 +44,10 @@ public class Main {
             }
 
             private static void testSensor(Sensor sensor, int iterations) {
-                for(int i = 0; i < iterations; i++) {
+                for (int i = 0; i < iterations; i++) {
                     System.out.println(sensor.getType() + " reading: " + sensor.readData());
                 }
-
-
+            }
+            
     }
 }

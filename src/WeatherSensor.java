@@ -2,7 +2,7 @@ import java.util.Random;
 
 public class WeatherSensor extends Sensor {
     private Random random = new Random();
-    private String[] conditions = {"Clear", "Rain", "Snow", "Fog"};
+    private String[] conditions = {"Clear", "Rain", "ui", "Fog"};
 
     public WeatherSensor(int id) {
         super(id, "Weather");

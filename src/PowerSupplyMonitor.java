@@ -1,19 +1,20 @@
 public class PowerSupplyMonitor {
     private boolean isPowerAvailable;
+    private boolean backup = false;
 
     public boolean checkPower() {
         return isPowerAvailable;
     }
 
     public void activateBackup() {
-        // Implementation
+        backup = true;
     }
 
     public void alertPowerFailure() {
-        // Implementation
+        System.out.println("Power failure detected, activating backup.");
     }
 
     public void deactivateBackup() {
-        // Implementation
+        backup = false;
     }
 }

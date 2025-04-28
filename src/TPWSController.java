@@ -6,6 +6,17 @@ public class TPWSController {
     private double currentSpeed;
     private double safeDistance;
 
+    private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
+    private final WeatherSensor weatherSensor = new WeatherSensor(1);
+    private final SignalStatusMonitor signalStatusMonitor = new SignalStatusMonitor();
+    private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(2);
+    private final PowerSupplyMonitor powerSupplyMonitor = new PowerSupplyMonitor();
+    private final WarningBuzzer buzzer = new WarningBuzzer();
+    private final TrackSideTransmitter transmitter = new TrackSideTransmitter();
+
+    double speedLimit = transmitter.getSpeedLimit();
+    String signalStatus = transmitter.getSignalStatus();
+
 
     public Thread EsperRun(EPServiceProvider engine, Sensor sensor){
         System.out.println("ESPER RUN");
@@ -18,26 +29,40 @@ public class TPWSController {
         // Attaching callback to EPL statements
         speed_select_statement.setSubscriber(new Object() {
             public void update(double lastReading) {
-                System.out.println("\n NEW SENSOR READING: " +  lastReading);
+                System.out.printf("\n NEW %s READING: %f " , sensorString[0].toUpperCase(), lastReading);
             }
         });
 
         return new Thread((Runnable) sensor);
     }
 
+    // find a proper usage for this
     public void monitorConditions() {
-        // Implementation
+        weatherSensor.detectWeather();
+        String signalStatus = signalStatusMonitor.getSignalStatus();
+        powerSupplyMonitor.checkPower();
+
     }
 
     public void checkBrakes() {
         // Implementation
+        brakeStatusSensor.getBrakeStatus();
+//        if(){
+//
+//        }
     }
 
     public void reduceSpeed() {
-        // Implementation
+        if(currentSpeed > speedLimit + 10 || signalStatus.equalsIgnoreCase("red")){
+            brakingSystem.applyBrakes();
+        }else brakingSystem.releaseBrakes();
     }
 
     public void activateWarningSound() {
-        // Implementation
+        if(currentSpeed > speedLimit + 5){
+            buzzer.activateBuzzer();
+            System.out.println("BUZZER ACTIVATED. OVER SPEED LIMIT.");
+        }else buzzer.stopBuzzer();
+
     }
 }

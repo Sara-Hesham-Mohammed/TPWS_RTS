@@ -13,10 +13,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class TrackSideTransmitter {
 
     /*====================  attributes (from UML)  =========================*/
-    private final String transmitterID;         // immutable identity
+    private String transmitterID;         // immutable identity
     private volatile String segmentIdentifier;  // e.g. "A27-03"
     private volatile int    speedLimit;         // km/h
     private volatile String signalStatus;       // "RED" | "YELLOW" | "GREEN"
+
+    public TrackSideTransmitter() {
+
+    }
 
     /*====================  pub-sub support  ===============================*/
     @FunctionalInterface

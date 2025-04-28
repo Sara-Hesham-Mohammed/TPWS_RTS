@@ -1,6 +1,5 @@
 import com.espertech.esper.client.EPServiceProvider;
 import com.espertech.esper.client.EPServiceProviderManager;
-
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -21,7 +20,7 @@ public class SpeedSensor extends Sensor implements Runnable {
         if (!isActive) {
             //if inactive then the speed = 0
             System.out.println("Sensor inactive");
-            return 0;
+            return -1;
         } else {
             double voltageReading = measureSpeed();
             //calculates the speed

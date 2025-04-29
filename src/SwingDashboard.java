@@ -2,46 +2,41 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
-import java.util.Timer;
-import java.util.TimerTask;
 
 /**
- * Nicer-looking, fully-automatic TPWS dashboard (no buttons).
- * Depends only on TrackSideTransmitter.java and Stopwatch inner class.
+ * Swing dashboard that auto-updates via push callbacks.
  */
 public class SwingDashboard {
 
-    /* ---------- live labels & widgets ---------- */
+    /* ── widgets ── */
     private final JLabel timerVal = bigLabel();
     private final JLabel segVal   = bigLabel();
     private final JLabel sigVal   = badgeLabel(Color.GRAY);
     private final JProgressBar speedGauge = new JProgressBar(0, 200);
 
-    /* ---------- core objects ---------- */
-    private final Stopwatch            stopwatch = new Stopwatch();
+    /* ── core objects ── */
+    private final Timer                stopwatch = new Timer();
     private final TrackSideTransmitter tx        =
-            new TrackSideTransmitter("TX-01", "S-1A", 100, "GREEN", 3);
+            new TrackSideTransmitter("01", "S-1A", 100, "GREEN", 3);
 
-    /* ================================================================ */
+    /* ── ctor ── */
     public SwingDashboard() {
         try { UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel"); }
-        catch (Exception ignored) { /* fallback L&F will be used */ }
+        catch (Exception ignored) {}
 
-        new Thread(tx, "TxLoop").start();
-        stopwatch.start();
+        wireListeners();
+        tx.start();
+        stopwatch.start(250);
 
         createGui();
-        startUiTicker();
     }
 
-    /* ---------- helper: big value label ---------- */
+    /* ── builder helpers ── */
     private static JLabel bigLabel() {
         JLabel l = new JLabel("--", SwingConstants.CENTER);
         l.setFont(l.getFont().deriveFont(Font.BOLD, 28f));
         return l;
     }
-
-    /* ---------- helper: coloured badge ---------- */
     private static JLabel badgeLabel(Color c) {
         JLabel l = bigLabel();
         l.setOpaque(true);
@@ -51,16 +46,47 @@ public class SwingDashboard {
         return l;
     }
 
-    /* ---------- GUI construction ---------- */
+    /* ── listener wiring (push model) ── */
+    private void wireListeners() {
+
+        /* elapsed time every 250 ms */
+        stopwatch.addListener((elapsed, ts) ->
+                SwingUtilities.invokeLater(() ->
+                        timerVal.setText(formatTime(elapsed))));
+
+        /* transmitter pushes field updates */
+        tx.addListener((key, value, ts) -> SwingUtilities.invokeLater(() -> {
+            switch (key) {
+                case "segment" -> segVal.setText(value.toString());
+
+                case "speedLimit" -> {
+                    int v = (Integer) value;
+                    speedGauge.setValue(v);
+                    speedGauge.setString(v + " km/h");
+                }
+
+                case "signal" -> {
+                    String s = value.toString();
+                    sigVal.setText(s);
+                    sigVal.setBackground(switch (s) {
+                        case "RED"    -> new Color(180, 35, 35);
+                        case "YELLOW" -> new Color(200, 130, 0);   // colour-blind-safe amber
+                        case "GREEN"  -> new Color( 25, 140, 60);
+                        default       -> Color.GRAY;
+                    });
+                }
+            }
+        }));
+    }
+
+    /* ── GUI construction ── */
     private void createGui() {
         JFrame frame = new JFrame("TPWS Dashboard");
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 
-        /* --- pretty card panel --- */
         JPanel card = new JPanel(new GridBagLayout());
         card.setBorder(new EmptyBorder(20, 30, 20, 30));
         card.setBackground(new Color(245, 245, 245));
-        card.setOpaque(true);
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0; gbc.insets = new Insets(10, 15, 10, 15);
@@ -70,7 +96,6 @@ public class SwingDashboard {
         addRow(card, gbc, "Segment:", segVal);
 
         speedGauge.setStringPainted(true);
-        speedGauge.setValue(0);
         speedGauge.setFont(speedGauge.getFont().deriveFont(Font.PLAIN, 16f));
         addRow(card, gbc, "Speed:", speedGauge);
 
@@ -78,9 +103,17 @@ public class SwingDashboard {
 
         frame.setContentPane(card);
         frame.pack();
-        frame.setMinimumSize(frame.getSize());      // prevent collapse
+        frame.setMinimumSize(frame.getSize());
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
+
+        /* ensure background threads shut down */
+        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) {
+                try (tx; stopwatch) { /* try-with-resources closes both */ }
+                catch (Exception ignored) {}
+            }
+        });
     }
 
     private static void addRow(JPanel p, GridBagConstraints gbc,
@@ -97,39 +130,15 @@ public class SwingDashboard {
         gbc.gridx = 0; gbc.fill = GridBagConstraints.NONE;
     }
 
-    /* ---------- periodic UI refresh ---------- */
-    private void startUiTicker() {
-        new Timer("UI", true).scheduleAtFixedRate(
-                new TimerTask() { @Override public void run() {
-                    SwingUtilities.invokeLater(SwingDashboard.this::refresh);
-                }}, 0, 250);
+    /* ── helpers ── */
+    private static String formatTime(long ms) {
+        long sec = ms / 1000;
+        long rem = ms % 1000;
+        return "%d s %03d ms".formatted(sec, rem);
     }
 
-    private void refresh() {
-        timerVal.setText(stopwatch.elapsedMs() + " ms");
-        segVal.setText(tx.getSegmentIdentifier());
-
-        speedGauge.setValue(tx.getSpeedLimit());
-        speedGauge.setString(tx.getSpeedLimit() + " km/h");
-
-        sigVal.setText(tx.getSignalStatus());
-        switch (tx.getSignalStatus()) {
-            case "RED"    -> sigVal.setBackground(new Color(200,30,30));
-            case "YELLOW" -> sigVal.setBackground(new Color(240,180,20));
-            case "GREEN"  -> sigVal.setBackground(new Color(30,170,30));
-            default       -> sigVal.setBackground(Color.GRAY);
-        }
-    }
-
-    /* ---------- launcher ---------- */
+    /* ── launcher ── */
     public static void main(String[] args) {
         SwingUtilities.invokeLater(SwingDashboard::new);
     }
-}
-
-/* tiny helper class: no clash with java.util.Timer */
-class Stopwatch {
-    private long start;
-    void start()           { start = System.currentTimeMillis(); }
-    long elapsedMs()       { return System.currentTimeMillis() - start; }
 }

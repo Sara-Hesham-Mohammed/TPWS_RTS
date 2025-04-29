@@ -4,26 +4,33 @@ import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.time.Duration;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 /**
- * A modern-looking screen for the TPWS Timer actor.
- * ───────────────────────────────────────────────────────────
- * • Big digital clock     00:01:23.456
- * • Slim progress bar     (0-999 ms of current second)
- * • Start / Stop / Reset buttons (same API as before)
- * • Updates every 50 ms via the timer's own tick-listener
+ * Modern screen for the TPWS Timer actor.
+ *
+ *  • Big digital clock  00:01:23.456
+ *  • Slim progress bar  (0-999 ms of current second)
+ *  • Start / Stop / Reset buttons
+ *  • Updates every 50 ms via the timer's tick-listener
  */
 public class TimerPanel extends JPanel implements Timer.TickListener {
 
-    private final JLabel bigClock = new JLabel("00:00:00.000", SwingConstants.CENTER);
-    private final JProgressBar msBar = new JProgressBar(0, 999);
+    /* ── widgets ── */
+    private final JLabel        bigClock = new JLabel("00:00:00.000", SwingConstants.CENTER);
+    private final JProgressBar  msBar    = new JProgressBar(0, 999);
 
+    /* ── domain object ── */
     private final Timer timer;
 
-    private static final DateTimeFormatter CLOCK_FMT =
-            DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+    /* ── constants ── */
+    private static final long               PERIOD_MS  = 50;        // tick every 50 ms
+    private static final DateTimeFormatter  CLOCK_FMT =
+            DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
+                    .withZone(ZoneId.systemDefault());
 
+    /* ── ctor ── */
     public TimerPanel(Timer timer) {
         this.timer = timer;
         timer.addListener(this);
@@ -32,13 +39,13 @@ public class TimerPanel extends JPanel implements Timer.TickListener {
         buildUi();
     }
 
-    /* ──────────────────── fancy Nimbus L&F ──────────────────── */
+    /* ── Nimbus L&F ── */
     private void setLookAndFeel() {
         try { UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel"); }
         catch (Exception ignored) {}
     }
 
-    /* ──────────────────── GUI construction ──────────────────── */
+    /* ── GUI construction ── */
     private void buildUi() {
         setLayout(new BorderLayout());
 
@@ -63,7 +70,7 @@ public class TimerPanel extends JPanel implements Timer.TickListener {
         JButton stop  = new JButton("Stop");
         JButton reset = new JButton("Reset");
 
-        start.addActionListener(e -> timer.start(50));  // 50-ms ticks
+        start.addActionListener(e -> timer.start(PERIOD_MS));
         stop .addActionListener(e -> timer.stop());
         reset.addActionListener(e -> { timer.reset(); updateDisplay(0); });
 
@@ -82,23 +89,40 @@ public class TimerPanel extends JPanel implements Timer.TickListener {
         return g;
     }
 
-    /* ──────────────────── listener callback ─────────────────── */
-    @Override public void onTick(long elapsedMs, java.time.Instant ts) {
+    /* ── listener callback ── */
+    @Override
+    public void onTick(long elapsedMs, java.time.Instant ts) {
         SwingUtilities.invokeLater(() -> updateDisplay(elapsedMs));
     }
 
     private void updateDisplay(long ms) {
         bigClock.setText(CLOCK_FMT.format(LocalTime.MIDNIGHT.plus(Duration.ofMillis(ms))));
-        msBar.setValue((int)(ms % 1000));
-        msBar.setString((ms % 1000) + " ms");
+        int sub = (int)(ms % 1000);
+        msBar.setValue(sub);
+        msBar.setString(sub + " ms");
     }
 
-    /* ──────────────────── demo launcher ─────────────────────── */
+    /* ── demo launcher ── */
     public static void main(String[] args) {
-        Timer t = new Timer();
-        JFrame f = new JFrame("Timer Screen");
-        f.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-        f.setContentPane(new TimerPanel(t));
-        f.pack(); f.setLocationRelativeTo(null); f.setVisible(true);
+        SwingUtilities.invokeLater(() -> {
+            Timer t = new Timer();
+            JFrame f = new JFrame("Timer Screen");
+            f.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+            f.setContentPane(new TimerPanel(t));
+            f.pack();
+            f.setLocationRelativeTo(null);
+            f.setVisible(true);
+
+            /* start automatically so the clock is live */
+            t.start(PERIOD_MS);
+
+            /* clean shutdown of scheduler */
+            f.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override public void windowClosing(java.awt.event.WindowEvent e) {
+                    try (t) { /* AutoCloseable shuts down executor */ }
+                    catch (Exception ignored) {}
+                }
+            });
+        });
     }
 }

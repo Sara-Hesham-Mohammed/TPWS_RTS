@@ -1,75 +1,99 @@
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Track-side beacon that:
- *   • broadcasts segmentIdentifier, speedLimit, signalStatus every 50 ms
- *   • automatically picks NEW values every <cycleSeconds>
+ * Simulates a track-side beacon that broadcasts:
+ *   • segmentIdentifier (String, e.g. "S-12B")
+ *   • speedLimit        (int km/h)
+ *   • signalStatus      (String: "RED", "YELLOW", "GREEN")
+ *
+ * Broadcast every 50 ms; values are fully refreshed every <cycleSeconds>.
+ * Uses a single-thread ScheduledExecutorService and is AutoCloseable.
  */
-public class TrackSideTransmitter implements Runnable {
+public class TrackSideTransmitter implements AutoCloseable {
 
-    /* ---------- state ---------- */
-    private final String transmitterID;
+    /* ── configuration ── */
+    private static final int BROADCAST_MS = 50;           // 20 Hz
+    private final int cycleSeconds;
+
+    /* ── live state ── */
+    private String transmitterID;      // never null after ctor
     private volatile String segmentIdentifier;
     private volatile int    speedLimit;
     private volatile String signalStatus;
 
-    private final int cycleSeconds;
-    private int tickCounter = 0;
+    /* ── scheduler ── */
+    private final ScheduledExecutorService exec =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "Tx-" + transmitterID);
+                t.setDaemon(true);
+                return t;
+            });
+    private final AtomicInteger tick = new AtomicInteger();
 
-    /* ---------- pub-sub ---------- */
-    @FunctionalInterface public interface Listener {
+    /* ── pub-sub ── */
+    @FunctionalInterface
+    public interface Listener {
         void onBroadcast(String key, Object value, Instant ts);
     }
-    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
-    public void addListener(Listener l){ listeners.add(l); }
-    public void removeListener(Listener l){ listeners.remove(l); }
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
+    public void addListener(Listener l)    { listeners.add(l); }
+    public void removeListener(Listener l) { listeners.remove(l); }
 
-    /* ---------- ctor (5 args) ---------- */
+    /* ── constructor ── */
     public TrackSideTransmitter(String id,
-                                String seg,
+                                String segment,
                                 int    limit,
                                 String signal,
-                                int    cycleSeconds){
-        this.transmitterID = id;
-        this.segmentIdentifier = seg;
-        this.speedLimit = limit;
-        this.signalStatus = signal;
-        this.cycleSeconds = cycleSeconds;
+                                int    cycleSeconds) {
+        this.transmitterID      = id;
+        this.segmentIdentifier  = segment;
+        this.speedLimit         = limit;
+        this.signalStatus       = signal;
+        this.cycleSeconds       = cycleSeconds;
     }
 
-    /* ---------- internal helpers ---------- */
-    private void fire(String k, Object v){
-        Instant ts = Instant.now();
-        for (Listener l : listeners) l.onBroadcast(k, v, ts);
+    /* ── life-cycle ── */
+    public void start() {
+        exec.scheduleAtFixedRate(this::broadcast,
+                0, BROADCAST_MS,
+                TimeUnit.MILLISECONDS);
     }
-    private void randomise(){
+    @Override
+    public void close() {
+        exec.shutdownNow();
+    }
+
+    /* ── helpers ── */
+    private void broadcast() {
+        if (tick.incrementAndGet() >= cycleSeconds * 1000 / BROADCAST_MS) {
+            randomise(); tick.set(0);
+        }
+        Instant now = Instant.now();
+        listeners.forEach(l -> {
+            l.onBroadcast("segment",     segmentIdentifier, now);
+            l.onBroadcast("speedLimit",  speedLimit,        now);
+            l.onBroadcast("signal",      signalStatus,      now);
+        });
+    }
+
+    private void randomise() {
         int n = ThreadLocalRandom.current().nextInt(1, 30);
-        segmentIdentifier = "S-" + n + (char)('A'+ n%3);
-        speedLimit = switch(n%3){ case 0->80; case 1->100; default->120; };
-        signalStatus = switch(n%3){ case 0->"RED"; case 1->"YELLOW"; default->"GREEN"; };
+        segmentIdentifier = "S-" + n + (char) ('A' + n % 3);
+        speedLimit        = switch (n % 3) { case 0 -> 0;  case 1 -> 80; default -> 140; };
+        signalStatus      = switch (n % 3) { case 0 -> "RED";
+            case 1 -> "YELLOW";
+            default -> "GREEN"; };
     }
 
-    /* ---------- background loop ---------- */
-    private final AtomicBoolean running = new AtomicBoolean(true);
-    @Override public void run(){
-        try{
-            while(running.get()){
-                if(++tickCounter >= cycleSeconds*1000/50){ randomise(); tickCounter=0; }
-                fire("segmentIdentifier", segmentIdentifier);
-                fire("speedLimit", speedLimit);
-                fire("signalStatus", signalStatus);
-                Thread.sleep(50);
-            }
-        }catch(InterruptedException ignored){}
-    }
-    public void stop(){ running.set(false); }
-
-    /* ---------- getters ---------- */
-    public String getSegmentIdentifier(){ return segmentIdentifier; }
-    public int    getSpeedLimit(){ return speedLimit; }
-    public String getSignalStatus(){ return signalStatus; }
+    /* ── convenience getters ── */
+    public String getSegmentIdentifier() { return segmentIdentifier; }
+    public int    getSpeedLimit()        { return speedLimit; }
+    public String getSignalStatus()      { return signalStatus; }
 }

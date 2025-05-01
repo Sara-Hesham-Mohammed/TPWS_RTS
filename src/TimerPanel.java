@@ -112,7 +112,7 @@ public class TimerPanel extends JPanel implements Timer.TickListener {
             f.pack();
             f.setLocationRelativeTo(null);
             f.setVisible(true);
-
+/*ttt*/
             /* start automatically so the clock is live */
             t.start(PERIOD_MS);
 

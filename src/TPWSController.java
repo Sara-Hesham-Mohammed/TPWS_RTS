@@ -53,38 +53,40 @@ public class TPWSController {
         return new Thread((Runnable) sensor);
     }
 
-    // find a proper usage for this
-    public void monitorConditions() {
-        weatherSensor.detectWeather();
-        //what does the signal status monitor do?
-        //signalStatus = signalStatusMonitor.getSignalStatus();
-        powerSupplyMonitor.checkPower();
-
-    }
-
-    public void checkBrakes() {
-        // Implementation
-        if (brakeStatusSensor.getBrakeStatus()){
-
+    //nour
+    public void monitorConditions(PowerSupplyMonitor powerMonitor, SignalStatusMonitor signalMonitor) {
+        if (!powerMonitor.checkPower()) {
+            System.out.println("Power failure detected.");
+            powerMonitor.alertPowerFailure();
+            powerMonitor.activateBackup();
         }
+
+            //monitoring conditions could include signal status also
+            String status = signalMonitor.getSignalStatus();
+            System.out.println("Current signal status: " + status);
+
+            if ("STOP".equalsIgnoreCase(status)) {
+                System.out.println("Signal is STOP. Applying brakes.");
+            }
+
     }
 
-    public void reduceSpeed() {
-        while (currentSpeed > speedLimit + 10){
-            brakingSystem.applyBrakes();
-            currentSpeed = currentSpeed - 10;
-        }
-    }
-
-    public void stopTrain() {
-        if (currentSpeed > 0 && signalStatus.equalsIgnoreCase("red")) {
-            brakingSystem.applyBrakes();
-            currentSpeed = currentSpeed - 10;
-            System.out.println("Train stopping.");
+    //nour
+    public void checkBrakes(EmergencyBrakingSystem brakeSystem) {
+        if (!brakeSystem.isBraking()) {
+            System.out.println("Brakes not applied. Applying now.");
+            brakeSystem.applyBrakes();
         } else {
-            System.out.println("Train is already stopped or signal is not red.");
+            System.out.println("Brakes already applied.");
         }
     }
+
+    //nour (but there could be connections to other classes idk yet)
+    public void reduceSpeed(EmergencyBrakingSystem brakeSystem) {
+        System.out.println("Reducing speed. Brakes engaged.");
+        brakeSystem.applyBrakes();
+    }
+
 
     public void activateWarningSound() {
         if(currentSpeed > speedLimit + 5){

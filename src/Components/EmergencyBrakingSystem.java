@@ -1,13 +1,23 @@
 package Components;
 
 public class EmergencyBrakingSystem {
-    private boolean isBraking;
+    private boolean isBraking = false;
 
     public void applyBrakes() {
-        isBraking = true;
+        if (!isBraking) {
+            System.out.println("Brakes applied!");
+            isBraking = true;
+        }
     }
 
     public void releaseBrakes() {
-        isBraking = false;
+        if (isBraking) {
+            System.out.println("Brakes released.");
+            isBraking = false;
+        }
+    }
+
+    public boolean isBraking() {
+        return isBraking;
     }
 }

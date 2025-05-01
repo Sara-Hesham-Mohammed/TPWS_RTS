@@ -16,12 +16,12 @@ public class TPWSController {
 
     private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final WeatherSensor weatherSensor = new WeatherSensor(1);
-    private final SignalStatusMonitor signalStatusMonitor = new SignalStatusMonitor();
+    private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
     private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(2, 0);
-    private final PowerSupplyMonitor powerSupplyMonitor = new PowerSupplyMonitor();
+    private final PowerSupplyMonitor powerMonitor = new PowerSupplyMonitor();
     private final WarningBuzzer buzzer = new WarningBuzzer();
     private final GPSModule gps = new GPSModule();
-    private final TrackSideTransmitter transmitter = new TrackSideTransmitter("seg100", "100", 50, "green",50);
+    private final TrackSideTransmitter transmitter = new TrackSideTransmitter("seg100", "100", 50, "green", 50);
 
 
     double trainPosition = gps.provideRealTimeLocation();
@@ -41,58 +41,64 @@ public class TPWSController {
         // Creating EPL statement
         EPStatement speed_select_statement = engine
                 .getEPAdministrator()
-                .createEPL("select lastReading from " + sensorString[0]+ "timer:interval("+time+" milliseconds)");
+                .createEPL("select lastReading from " + sensorString[0] + "timer:interval(" + time + " milliseconds)");
 
         // Attaching callback to EPL statements
         speed_select_statement.setSubscriber(new Object() {
             public void update(double lastReading) {
-                System.out.printf("\n NEW %s READING: %f " , sensorString[0].toUpperCase(), lastReading);
+                System.out.printf("\n NEW %s READING: %f ", sensorString[0].toUpperCase(), lastReading);
             }
         });
 
         return new Thread((Runnable) sensor);
     }
 
-    //nour
-    public void monitorConditions(PowerSupplyMonitor powerMonitor, SignalStatusMonitor signalMonitor) {
+    public void monitorConditions() {
         if (!powerMonitor.checkPower()) {
             System.out.println("Power failure detected.");
             powerMonitor.alertPowerFailure();
             powerMonitor.activateBackup();
         }
+        weatherSensor.detectWeather();
+        String status = signalMonitor.getSignalStatus();
+        System.out.println("Current signal status: " + status);
 
-            //monitoring conditions could include signal status also
-            String status = signalMonitor.getSignalStatus();
-            System.out.println("Current signal status: " + status);
-
-            if ("STOP".equalsIgnoreCase(status)) {
-                System.out.println("Signal is STOP. Applying brakes.");
-            }
+        if ("STOP".equalsIgnoreCase(status)) {
+            System.out.println("Signal is STOP. Applying brakes.");
+        }
 
     }
 
-    //nour
-    public void checkBrakes(EmergencyBrakingSystem brakeSystem) {
-        if (!brakeSystem.isBraking()) {
-            System.out.println("Brakes not applied. Applying now.");
-            brakeSystem.applyBrakes();
+
+    public void checkBrakes() {
+        if(brakeStatusSensor.getBrakeStatus()){
+            System.out.println("Brake status: OK");
         } else {
-            System.out.println("Brakes already applied.");
+            System.out.println("Brakes status: in need of maintenance. Please check.");
         }
     }
 
-    //nour (but there could be connections to other classes idk yet)
-    public void reduceSpeed(EmergencyBrakingSystem brakeSystem) {
+    public void reduceSpeed() {
         System.out.println("Reducing speed. Brakes engaged.");
-        brakeSystem.applyBrakes();
+        while (currentSpeed > speedLimit + 10) {
+            brakingSystem.applyBrakes();
+            currentSpeed = currentSpeed - 10;
+        }
     }
 
+    public void stopTrain() {
+        if (currentSpeed > 0 && signalStatus.equalsIgnoreCase("red")) {
+            brakingSystem.applyBrakes();
+        } else brakingSystem.releaseBrakes();
+        currentSpeed = currentSpeed - 10;
+        System.out.println("Train stopping.");
+    }
 
     public void activateWarningSound() {
-        if(currentSpeed > speedLimit + 5){
+        if (currentSpeed > speedLimit + 5) {
             buzzer.activateBuzzer();
             System.out.println("BUZZER ACTIVATED. OVER SPEED LIMIT. PLEASE REDUCE SPEED");
-        }else buzzer.stopBuzzer();
+        } else buzzer.stopBuzzer();
 
     }
 }

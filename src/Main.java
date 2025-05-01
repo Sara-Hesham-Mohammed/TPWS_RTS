@@ -47,26 +47,32 @@ public class main {
         System.out.println("=== Testing Speed Sensors.Sensor WITH THREADS ===");
         speedThread.start();
 
-        // Test each sensor
-//        System.out.println("=== Testing Distance Sensors.Sensor WITH THREADS ===");
-//        distanceThread.start();
+        // Initialize GPSModule and Screen
+        GPSModule gpsModule = new GPSModule(37.7749, -122.4194, 60);
+        Screen screen = new Screen();
 
-//        // Test each sensor
-//        System.out.println("=== Testing Weather Sensors.Sensor WITH THREADS ===");
-//        weatherThread.start();
+        // Initialize and test WarningBuzzer
+        WarningBuzzer buzzer = new WarningBuzzer();
 
-//
-//        // Test each sensor
-//        System.out.println("=== Testing Brake Sensors.Sensor WITH THREADS ===");
-//        brakeThread.start();
+        // Simulate GPS update and display info
+        gpsModule.updateGPS(37.7750, -122.4195, 80);
+        screen.displaySpeed(gpsModule.getSpeed());
+        screen.displaySignalStatus("Green");
 
+        // Trigger WarningBuzzer based on simulated speeds
+        try {
+            buzzer.sendSpeedEvent(76, 70); // Exceeds limit by 6 km/h
+            screen.displayWarning("Speed Limit Exceeded!");
+            Thread.sleep(500);
 
-//        // Test deactivation
-//        System.out.println("\n=== Testing Deactivation ===");
-//        speedSensor.deactivate();
-//        System.out.println("Speed reading (inactive): " + speedSensor.measureSpeed());
-//        speedSensor.activate();
-//        System.out.println("Speed reading (reactivated): " + speedSensor.measureSpeed());
+            buzzer.sendSpeedEvent(72, 70); // Exceeds limit by 2 km/h (may or may not trigger)
+            screen.displayWarning("Check Speed");
+            Thread.sleep(500);
+
+            buzzer.stopBuzzer();
+            screen.displayInfo("Buzzer stopped.");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
-
 }

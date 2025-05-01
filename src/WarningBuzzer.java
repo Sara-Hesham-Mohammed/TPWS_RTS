@@ -48,7 +48,7 @@ public class WarningBuzzer {
         }
     }
 
-    
+
     public static class SpeedEvent {
         private double speed;
         private double limit;

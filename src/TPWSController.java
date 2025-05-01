@@ -1,8 +1,5 @@
 import Components.*;
-import Sensors.BrakeStatusSensor;
-import Sensors.DistanceSensor;
-import Sensors.Sensor;
-import Sensors.WeatherSensor;
+import Sensors.*;
 import com.espertech.esper.client.EPServiceProvider;
 import com.espertech.esper.client.EPStatement;
 
@@ -14,21 +11,25 @@ public class TPWSController {
     //change current speed, get it mn el gps module
     private double currentSpeed;
     private double safeDistance;
+    private volatile double speedLimit = 0; // updated via Esper
+    private volatile String signalStatus;
 
-    //to set up listeners
+    // Engine to set up subscribers w kda
     private EPServiceProvider engine = null;
 
-    private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
+    /** Sensors init **/
     private final WeatherSensor weatherSensor = new WeatherSensor(1);
     private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(1, 0);
     private final DistanceSensor distanceSensor = new DistanceSensor(1, 0);
+    private final SpeedSensor speedSensor = new SpeedSensor(1, 100);
+
+    /** System Components init**/
+    private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
     private final PowerSupplyMonitor powerMonitor = new PowerSupplyMonitor();
     private final WarningBuzzer buzzer = new WarningBuzzer();
     private final GPSModule gps = new GPSModule();
 
-    private volatile double speedLimit = 0; // updated via Esper
-    private volatile String signalStatus;
 
 
     public TPWSController(String controllerID, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
@@ -49,11 +50,11 @@ public class TPWSController {
             System.out.println("Signal is STOP. Applying brakes.");
         }
 
-        //receive data from esper engine
+        // receive data from esper engine
         getTransmitterData();
 
         // get all the sensor data from esper engine + start their threads
-        Thread speedThread = getSensorData(engine, new Sensors.SpeedSensor(1, 100), 250);
+        Thread speedThread = getSensorData(engine, speedSensor, 250);
         Thread brakeThread = getSensorData(engine, brakeStatusSensor, 100);
         Thread distanceThread = getSensorData(engine, distanceSensor, 100);
         Thread weatherThread = getSensorData(engine, weatherSensor, 100);

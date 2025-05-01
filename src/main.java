@@ -21,8 +21,7 @@ public class main {
         EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
         //double speed = random.nextDouble();
         //for testing buzzer
-        double speed = 100;
-        TPWSController controller = new TPWSController("TPWS_1",speed,engine);
+        TPWSController controller = new TPWSController("TPWS_1",engine);
 
         // Registering the events
         engine.getEPAdministrator().getConfiguration().addEventType(SpeedSensor.class);

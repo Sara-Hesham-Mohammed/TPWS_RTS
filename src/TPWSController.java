@@ -28,7 +28,7 @@ public class TPWSController {
     private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
     private final PowerSupplyMonitor powerMonitor = new PowerSupplyMonitor();
     private final WarningBuzzer buzzer = new WarningBuzzer();
-    private final GPSModule gps = new GPSModule();
+    private final GPSModule gps = new GPSModule(20.0, 30.0, 60.0);
 
 
 

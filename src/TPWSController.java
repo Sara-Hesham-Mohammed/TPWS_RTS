@@ -25,17 +25,40 @@ public class TPWSController {
         return new Thread((Runnable) sensor);
     }
 
-    public void monitorConditions() {
-        // Implementation
+    //nour
+    public void monitorConditions(PowerSupplyMonitor powerMonitor, SignalStatusMonitor signalMonitor) {
+        if (!powerMonitor.checkPower()) {
+            System.out.println("Power failure detected.");
+            powerMonitor.alertPowerFailure();
+            powerMonitor.activateBackup();
+        }
+
+            //monitoring conditions could include signal status also
+            String status = signalMonitor.getSignalStatus();
+            System.out.println("Current signal status: " + status);
+
+            if ("STOP".equalsIgnoreCase(status)) {
+                System.out.println("Signal is STOP. Applying brakes.");
+            }
+
     }
 
-    public void checkBrakes() {
-        // Implementation
+    //nour
+    public void checkBrakes(EmergencyBrakingSystem brakeSystem) {
+        if (!brakeSystem.isBraking()) {
+            System.out.println("Brakes not applied. Applying now.");
+            brakeSystem.applyBrakes();
+        } else {
+            System.out.println("Brakes already applied.");
+        }
     }
 
-    public void reduceSpeed() {
-        // Implementation
+    //nour (but there could be connections to other classes idk yet)
+    public void reduceSpeed(EmergencyBrakingSystem brakeSystem) {
+        System.out.println("Reducing speed. Brakes engaged.");
+        brakeSystem.applyBrakes();
     }
+
 
     public void activateWarningSound() {
         // Implementation

@@ -1,51 +1,56 @@
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * High-resolution stopwatch used by TPWS to guarantee
- * timing constraints (e.g. “brakes must engage ≤ 100 ms
- * after overspeed is detected”).
- *
- * All operations are thread-safe – the class uses
- * java.time.Instant for nanosecond precision and an
- * AtomicBoolean to flag whether the timer is currently running.
+ * General-purpose stopwatch that can also tick listeners at
+ * a fixed period.  Uses a ScheduledExecutorService and is closable.
  */
-public class Timer {
+public class Timer implements AutoCloseable {
 
-    /*====================  attribute (from UML)  =========================*/
-    private volatile Instant startTime;         // null ⇒ not started
-    private final AtomicBoolean running = new AtomicBoolean(false);
+    /* ----- state ----- */
+    private volatile Instant startTime;
+    private final ScheduledExecutorService exec =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "TPWS-Timer");
+                t.setDaemon(true);
+                return t;
+            });
+    private ScheduledFuture<?> future;
 
-    /*====================  operations (from UML)  ========================*/
-    /** Records the current wall-clock time and marks the timer as running. */
-    public void start() {
+    /* ----- pub-sub ----- */
+    @FunctionalInterface
+    public interface TickListener {
+        void onTick(long elapsedMs, Instant ts);
+    }
+    private final CopyOnWriteArrayList<TickListener> listeners = new CopyOnWriteArrayList<>();
+    public void addListener(TickListener l)    { listeners.add(l); }
+    public void removeListener(TickListener l) { listeners.remove(l); }
+
+    /* ----- life-cycle ----- */
+    public synchronized void start(long periodMs) {
+        if (future != null && !future.isDone()) return;    // already running
         startTime = Instant.now();
-        running.set(true);
+        future = exec.scheduleAtFixedRate(() -> {
+            long elapsed = calculateDuration();
+            Instant ts   = Instant.now();
+            listeners.forEach(l -> l.onTick(elapsed, ts));
+        }, 0, periodMs, TimeUnit.MILLISECONDS);
+    }
+    public synchronized void stop() { if (future != null) future.cancel(true); }
+    public void reset()             { startTime = null; }
+
+    @Override
+    public void close() {
+        stop();
+        exec.shutdownNow();
     }
 
-    /** Stops the timer – further duration calls freeze at the stop instant. */
-    public void stop() {
-        if (running.compareAndSet(true, false)) {
-            // do nothing else – startTime already holds the start,
-            // and we regard 'now' as the stop instant
-        }
-    }
-
-    /** Clears any recorded times and returns the timer to its initial state. */
-    public void reset() {
-        running.set(false);
-        startTime = null;
-    }
-
-    /**
-     * Returns the elapsed duration **in milliseconds**.
-     * If the timer has never been started, the result is 0.
-     * If the timer is still running, the duration is measured up to ‘now’.
-     */
+    /* ----- utility ----- */
     public long calculateDuration() {
-        if (startTime == null) return 0;
-        Instant end = running.get() ? Instant.now() : startTime; // stop() froze time
-        return Duration.between(startTime, end).toMillis();
+        return (startTime == null) ? 0
+                : Duration.between(startTime, Instant.now()).toMillis();
     }
 }

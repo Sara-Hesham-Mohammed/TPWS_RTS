@@ -1,92 +1,99 @@
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Track-side beacon that advertises the current track-segment data
- * (speed limit, signal aspect, segment identifier) every 50 ms.
+ * Simulates a track-side beacon that broadcasts:
+ *   • segmentIdentifier (String, e.g. "S-12B")
+ *   • speedLimit        (int km/h)
+ *   • signalStatus      (String: "RED", "YELLOW", "GREEN")
  *
- * The class follows a very light-weight publish–subscribe pattern so that
- * TPWSController, SignalStatusMonitor, WarningBuzzer, EmergencyBrakingSystem
- * – or any other component – can register as listeners and react in real time.
+ * Broadcast every 50 ms; values are fully refreshed every <cycleSeconds>.
+ * Uses a single-thread ScheduledExecutorService and is AutoCloseable.
  */
-public class TrackSideTransmitter {
+public class TrackSideTransmitter implements AutoCloseable {
 
-    /*====================  attributes (from UML)  =========================*/
-    private String transmitterID;         // immutable identity
-    private volatile String segmentIdentifier;  // e.g. "A27-03"
-    private volatile int    speedLimit;         // km/h
-    private volatile String signalStatus;       // "RED" | "YELLOW" | "GREEN"
+    /* ── configuration ── */
+    private static final int BROADCAST_MS = 50;           // 20 Hz
+    private final int cycleSeconds;
 
-    public TrackSideTransmitter() {
+    /* ── live state ── */
+    private String transmitterID;      // never null after ctor
+    private volatile String segmentIdentifier;
+    private volatile int    speedLimit;
+    private volatile String signalStatus;
 
-    }
+    /* ── scheduler ── */
+    private final ScheduledExecutorService exec =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "Tx-" + transmitterID);
+                t.setDaemon(true);
+                return t;
+            });
+    private final AtomicInteger tick = new AtomicInteger();
 
-    /*====================  pub-sub support  ===============================*/
+    /* ── pub-sub ── */
     @FunctionalInterface
     public interface Listener {
-        /**
-         * Called every time the transmitter broadcasts one of its values.
-         *
-         * @param key   "speedLimit", "signalStatus" or "segmentIdentifier"
-         * @param value the value that was broadcast
-         * @param ts    wall-clock time of transmission
-         */
         void onBroadcast(String key, Object value, Instant ts);
     }
-
-    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
-
-    /*====================  construction  =================================*/
-    public TrackSideTransmitter(String transmitterID,
-                                String initialSegment,
-                                int    initialLimit,
-                                String initialSignal) {
-        this.transmitterID      = transmitterID;
-        this.segmentIdentifier  = initialSegment;
-        this.speedLimit         = initialLimit;
-        this.signalStatus       = initialSignal;
-    }
-
-    /*====================  “broadcast” operations  =======================*/
-    /** Broadcasts (and returns) the current speed limit in km/h. */
-    public float broadcastSpeedLimit() {
-        float v = speedLimit;
-        notifyAll("speedLimit", v);
-        return v;
-    }
-
-    /** Broadcasts (and returns) the current signal aspect. */
-    public String broadcastSignalStatus() {
-        String v = signalStatus;
-        notifyAll("signalStatus", v);
-        return v;
-    }
-
-    /** Broadcasts (and returns) the current segment identifier. */
-    public String broadcastSegmentIdentifier() {
-        String v = segmentIdentifier;
-        notifyAll("segmentIdentifier", v);
-        return v;
-    }
-
-    /*====================  listener management  ==========================*/
-    public void addListener(Listener l)    { listeners.add(l);    }
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
+    public void addListener(Listener l)    { listeners.add(l); }
     public void removeListener(Listener l) { listeners.remove(l); }
 
-    private void notifyAll(String key, Object value) {
-        Instant now = Instant.now();
-        for (Listener l : listeners) l.onBroadcast(key, value, now);
+    /* ── constructor ── */
+    public TrackSideTransmitter(String id,
+                                String segment,
+                                int    limit,
+                                String signal,
+                                int    cycleSeconds) {
+        this.transmitterID      = id;
+        this.segmentIdentifier  = segment;
+        this.speedLimit         = limit;
+        this.signalStatus       = signal;
+        this.cycleSeconds       = cycleSeconds;
     }
 
-    /*====================  mutators (maintenance or test)  ===============*/
-    public void setSegmentIdentifier(String segmentIdentifier) { this.segmentIdentifier = segmentIdentifier; }
-    public void setSpeedLimit(int speedLimit)                 { this.speedLimit        = speedLimit;        }
-    public void setSignalStatus(String signalStatus)          { this.signalStatus      = signalStatus;      }
+    /* ── life-cycle ── */
+    public void start() {
+        exec.scheduleAtFixedRate(this::broadcast,
+                0, BROADCAST_MS,
+                TimeUnit.MILLISECONDS);
+    }
+    @Override
+    public void close() {
+        exec.shutdownNow();
+    }
 
-    /*====================  getters (optional)  ===========================*/
-    public String getTransmitterID()      { return transmitterID;     }
-    public String getSegmentIdentifier()  { return segmentIdentifier; }
-    public int    getSpeedLimit()         { return speedLimit;        }
-    public String getSignalStatus()       { return signalStatus;      }
+    /* ── helpers ── */
+    private void broadcast() {
+        if (tick.incrementAndGet() >= cycleSeconds * 1000 / BROADCAST_MS) {
+            randomise(); tick.set(0);
+        }
+        Instant now = Instant.now();
+        listeners.forEach(l -> {
+            l.onBroadcast("segment",     segmentIdentifier, now);
+            l.onBroadcast("speedLimit",  speedLimit,        now);
+            l.onBroadcast("signal",      signalStatus,      now);
+        });
+    }
+
+    private void randomise() {
+        int n = ThreadLocalRandom.current().nextInt(1, 30);
+        segmentIdentifier = "S-" + n + (char) ('A' + n % 3);
+        speedLimit        = switch (n % 3) { case 0 -> 0;  case 1 -> 80; default -> 140; };
+        signalStatus      = switch (n % 3) { case 0 -> "RED";
+            case 1 -> "YELLOW";
+            default -> "GREEN"; };
+    }
+
+    /* ── convenience getters ── */
+    public String getSegmentIdentifier() { return segmentIdentifier; }
+    public int    getSpeedLimit()        { return speedLimit; }
+    public String getSignalStatus()      { return signalStatus; }
 }

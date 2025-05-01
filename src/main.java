@@ -20,25 +20,25 @@ public class Main {
         //SENSORS INITIALIZATION
         SpeedSensor speedSensor = new SpeedSensor(1, 100);
 //        DistanceSensor distanceSensor = new DistanceSensor(2);
-//        WeatherSensor weatherSensor = new WeatherSensor(3);
+        WeatherSensor weatherSensor = new WeatherSensor(3);
 //        BrakeStatusSensor brakeSensor = new BrakeStatusSensor(4);
 
         Thread speedThread = controller.EsperRun(engine,speedSensor);
 //        Thread distanceThread = controller.EsperRun(engine,distanceSensor);
-//        Thread weatherThread = controller.EsperRun(engine,weatherSensor);
+        Thread weatherThread = controller.EsperRun(engine,weatherSensor);
 //        Thread brakeThread = controller.EsperRun(engine,brakeSensor);
 
         // Test each sensor
-        System.out.println("=== Testing Speed Sensor WITH THREADS ===");
-        speedThread.start();
+//        System.out.println("=== Testing Speed Sensor WITH THREADS ===");
+//        speedThread.start();
 
         // Test each sensor
 //        System.out.println("=== Testing Distance Sensor WITH THREADS ===");
 //        distanceThread.start();
 //
-//        // Test each sensor
-//        System.out.println("=== Testing Weather Sensor WITH THREADS ===");
-//        weatherThread.start();
+        // Test each sensor
+        System.out.println("=== Testing Weather Sensor WITH THREADS ===");
+        weatherThread.start();
 //
 //        // Test each sensor
 //        System.out.println("=== Testing Brake Sensor WITH THREADS ===");

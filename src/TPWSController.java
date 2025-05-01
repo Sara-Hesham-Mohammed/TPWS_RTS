@@ -1,5 +1,6 @@
 import Components.*;
 import Sensors.BrakeStatusSensor;
+import Sensors.DistanceSensor;
 import Sensors.Sensor;
 import Sensors.WeatherSensor;
 import com.espertech.esper.client.EPServiceProvider;
@@ -10,51 +11,30 @@ import javax.sound.sampled.UnsupportedAudioFileException;
 import java.io.IOException;
 
 public class TPWSController {
-    private String controllerID;
+    //change current speed, get it mn el gps module
     private double currentSpeed;
     private double safeDistance;
+
     //to set up listeners
-    private final EPServiceProvider engine;
+    private EPServiceProvider engine = null;
 
     private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final WeatherSensor weatherSensor = new WeatherSensor(1);
+    private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(1, 0);
+    private final DistanceSensor distanceSensor = new DistanceSensor(1, 0);
     private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
-    private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(2, 0);
     private final PowerSupplyMonitor powerMonitor = new PowerSupplyMonitor();
     private final WarningBuzzer buzzer = new WarningBuzzer();
     private final GPSModule gps = new GPSModule();
-    private final TrackSideTransmitter transmitter = new TrackSideTransmitter("seg100", "100", 50, "green", 50);
+
+    private volatile double speedLimit = 0; // updated via Esper
+    private volatile String signalStatus;
 
 
-    double trainPosition = gps.provideRealTimeLocation();
-    double speedLimit = transmitter.getSpeedLimit();
-    String signalStatus = transmitter.getSignalStatus();
-
-
-    public TPWSController(String controllerID, double currentSpeed, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
-        this.controllerID = controllerID;
-        this.currentSpeed = currentSpeed;
+    public TPWSController(String controllerID, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         this.engine = engine;
-
+        TrackSideTransmitter transmitter = new TrackSideTransmitter("seg100", "100", 50, "green", 50, engine);
         monitorConditions();
-    }
-
-    // Function for receiving the sensor event(whatever event) continuously every X time interval
-    public Thread getEsperData(EPServiceProvider engine, Sensor sensor, int time) {
-        String[] sensorString = String.valueOf(sensor).split("@");
-        // Creating EPL statement
-        EPStatement select_statement = engine
-                .getEPAdministrator()
-                .createEPL("select lastReading from " + sensorString[0] + "timer:interval(" + time + " milliseconds)");
-
-        // Attaching callback to EPL statements
-        select_statement.setSubscriber(new Object() {
-            public void update(double lastReading) {
-                System.out.printf("\n NEW %s READING: %f ", sensorString[0].toUpperCase(), lastReading);
-            }
-        });
-
-        return new Thread((Runnable) sensor);
     }
 
     public void monitorConditions() {
@@ -69,32 +49,22 @@ public class TPWSController {
             System.out.println("Signal is STOP. Applying brakes.");
         }
 
-        // 1) Getting the Transmitter broadcast data every 50ms
-        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit "
-                + "from TransmitterEvent.win:time(50 milliseconds)";
-        EPStatement transmitterStatement = engine.getEPAdministrator().createEPL(eplTransmitter);
+        //receive data from esper engine
+        getTransmitterData();
 
-        transmitterStatement.setSubscriber(new Object() {
-            public void update(String segmentIdentifier, String signalStatus, int speedLimit) {
-                System.out.printf("SEG=%s SIG=%s LIM=%d%n", segmentIdentifier, signalStatus, speedLimit);
-            }
-        });
-
-        // 2) Getting the brakes sensor data every 100ms
-        String eplBrake = "select brakeEngaged from BrakeStatusEvent.win:time(100 milliseconds)";
-        EPStatement brakeStatement = engine.getEPAdministrator().createEPL(eplBrake);
-
-        brakeStatement.setSubscriber(new Object() {
-            public void update(boolean brakeEngaged) {
-                if (!brakeEngaged) checkBrakes();
-            }
-        });
-
-
+        // get all the sensor data from esper engine + start their threads
+        Thread speedThread = getSensorData(engine, new Sensors.SpeedSensor(1, 100), 250);
+        Thread brakeThread = getSensorData(engine, brakeStatusSensor, 100);
+        Thread distanceThread = getSensorData(engine, distanceSensor, 100);
+        Thread weatherThread = getSensorData(engine, weatherSensor, 100);
+        speedThread.start();
+        brakeThread.start();
+        distanceThread.start();
+        weatherThread.start();
     }
 
-
-    public void checkBrakes() {
+    /* Synchronization for the stuff that modifies the values/ writes ONLY*/
+    public synchronized void checkBrakes() {
         if (brakeStatusSensor.getBrakeStatus()) {
             System.out.println("Brake status: OK");
         } else {
@@ -102,27 +72,91 @@ public class TPWSController {
         }
     }
 
-    public void reduceSpeed() {
-        System.out.println("Reducing speed. Brakes engaged.");
-        while (currentSpeed > speedLimit + 10) {
-            brakingSystem.applyBrakes();
-            currentSpeed = currentSpeed - 10;
-        }
-    }
-
-    public void stopTrain() {
-        if (currentSpeed > 0 && signalStatus.equalsIgnoreCase("red")) {
-            brakingSystem.applyBrakes();
-        } else brakingSystem.releaseBrakes();
-        currentSpeed = currentSpeed - 10;
-        System.out.println("Train stopping.");
-    }
-
-    public void activateWarningSound() {
+    public synchronized void activateWarningSound() {
         if (currentSpeed > speedLimit + 5) {
             buzzer.activateBuzzer();
             System.out.println("BUZZER ACTIVATED. OVER SPEED LIMIT. PLEASE REDUCE SPEED");
         } else buzzer.stopBuzzer();
 
     }
+
+    public synchronized void reduceSpeed() {
+        while (currentSpeed > speedLimit + 10) {
+            brakingSystem.applyBrakes();
+            currentSpeed -= 10;
+            System.out.println("Reducing speed. Brakes engaged.");
+        }
+    }
+
+    public synchronized void stopTrain() {
+        while (signalStatus.equalsIgnoreCase("red")) {
+            if (currentSpeed <= 0) {
+                currentSpeed = 0; // ensure it doesn't go negative
+                break;
+            }
+            //engage brakes and decrement speed
+            brakingSystem.applyBrakes();
+            currentSpeed -= 10;
+
+            System.out.println("Train stopping.");
+        }
+    }
+
+    // Function for receiving the sensor event(whatever event) continuously every X time interval
+    public Thread getSensorData(EPServiceProvider engine, Sensor sensor, int time) {
+        String[] sensorString = String.valueOf(sensor).split("@");
+        String sensorType = sensorString[0];
+        // Creating EPL statement
+        EPStatement select_statement = engine.getEPAdministrator().createEPL("select lastReading from " + sensorType + "timer:interval(" + time + " milliseconds)");
+
+        // Attaching callback to EPL statements
+        select_statement.setSubscriber(new Object() {
+            public void update(double lastReading) {
+                System.out.printf("\nNEW %s READING: %.2f ", sensorType.toUpperCase(), lastReading);
+                switch (sensorType) {
+                    case "speedSensor":
+                        currentSpeed = lastReading;
+                        // Check speed limits and warnings and activate the buzzer if necessary
+                        activateWarningSound();
+                        // reduce speed if necessary
+                        reduceSpeed();
+                        break;
+                    case "brakeStatusSensor":
+                        if (lastReading != 1) {
+                            checkBrakes();
+                        }
+                        break;
+                    case "distanceSensor":
+                        safeDistance = lastReading;
+                        // When the train is close enough to read the signal (can know if it's red nor not)
+                        // then it checks if it needs to stop
+                        stopTrain();
+                        break;
+                    default:
+                        System.out.printf("\n NEW %s READING: %f ", sensorType.toUpperCase(), lastReading);
+                        break;
+                }
+
+
+
+            }
+        });
+        return new Thread((Runnable) sensor);
+    }
+
+    public void getTransmitterData() {
+        //Get the Transmitter broadcast data every 50ms
+        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit " + "from TrackSideTransmitter.win:time(50 milliseconds)";
+        EPStatement transmitterStatement = engine.getEPAdministrator().createEPL(eplTransmitter);
+
+        //this sets the speed
+        transmitterStatement.setSubscriber(new Object() {
+            public void update(String segmentIdentifier, String segSignalStatus, double segSpeedLimit) {
+                speedLimit = segSpeedLimit;
+                signalStatus = segSignalStatus;
+                System.out.printf("SEG=%s SIG=%s LIM=%f%n", segmentIdentifier, signalStatus, speedLimit);
+            }
+        });
+    }
+
 }

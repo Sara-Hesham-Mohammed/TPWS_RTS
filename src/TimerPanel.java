@@ -115,7 +115,7 @@ public class TimerPanel extends JPanel implements Timer.TickListener {
 /*ttt*/
             /* start automatically so the clock is live */
             t.start(PERIOD_MS);
-
+/*j*/
             /* clean shutdown of scheduler */
             f.addWindowListener(new java.awt.event.WindowAdapter() {
                 @Override public void windowClosing(java.awt.event.WindowEvent e) {

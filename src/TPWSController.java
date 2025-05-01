@@ -1,3 +1,7 @@
+import Components.*;
+import Sensors.BrakeStatusSensor;
+import Sensors.Sensor;
+import Sensors.WeatherSensor;
 import com.espertech.esper.client.EPServiceProvider;
 import com.espertech.esper.client.EPStatement;
 
@@ -9,22 +13,25 @@ public class TPWSController {
     private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final WeatherSensor weatherSensor = new WeatherSensor(1);
     private final SignalStatusMonitor signalStatusMonitor = new SignalStatusMonitor();
-    private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(2);
+    private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(2, 50);
     private final PowerSupplyMonitor powerSupplyMonitor = new PowerSupplyMonitor();
     private final WarningBuzzer buzzer = new WarningBuzzer();
-    private final TrackSideTransmitter transmitter = new TrackSideTransmitter();
+    private final GPSModule gps = new GPSModule();
+    private final TrackSideTransmitter transmitter = new TrackSideTransmitter("seg100", "100", 50, "green",50);
 
+
+    double trainPosition = gps.provideRealTimeLocation();
     double speedLimit = transmitter.getSpeedLimit();
     String signalStatus = transmitter.getSignalStatus();
 
-
-    public Thread EsperRun(EPServiceProvider engine, Sensor sensor){
+    // Function for receiving the event(whatever event) continuously every X time interval
+    public Thread EsperRun(EPServiceProvider engine, Sensor sensor, int time) {
         System.out.println("ESPER RUN");
         String[] sensorString = String.valueOf(sensor).split("@");
         // Creating EPL statement
         EPStatement speed_select_statement = engine
                 .getEPAdministrator()
-                .createEPL("select lastReading from " + sensorString[0]);
+                .createEPL("select lastReading from " + sensorString[0]+ "timer:interval("+time+" milliseconds)");
 
         // Attaching callback to EPL statements
         speed_select_statement.setSubscriber(new Object() {

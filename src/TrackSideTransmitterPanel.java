@@ -1,10 +1,12 @@
+import Components.TrackSideTransmitter;
+
 import javax.swing.*;
 import java.awt.*;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Pure display panel for a TrackSideTransmitter.
+ * Pure display panel for a Components.TrackSideTransmitter.
  * Adds itself as a listener and refreshes labels automatically.
  */
 public class TrackSideTransmitterPanel extends JPanel

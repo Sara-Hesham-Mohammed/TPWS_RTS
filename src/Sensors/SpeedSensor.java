@@ -1,12 +1,13 @@
+package Sensors;
+
 import com.espertech.esper.client.EPServiceProvider;
-import com.espertech.esper.client.EPServiceProviderManager;
+
 import java.util.Random;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class SpeedSensor extends Sensor implements Runnable {
     private static final Random random = new Random();
     double maxVoltage = 10;
+    EPServiceProvider engine;
 
 
     public SpeedSensor(int id, double lastReading) {
@@ -19,7 +20,7 @@ public class SpeedSensor extends Sensor implements Runnable {
         // the reading that gets sent to esper engine
         if (!isActive) {
             //if inactive then the speed = 0
-            System.out.println("Sensor inactive");
+            System.out.println("Sensors.Sensor inactive");
             return -1;
         } else {
             double voltageReading = measureSpeed();
@@ -38,17 +39,9 @@ public class SpeedSensor extends Sensor implements Runnable {
 
     @Override
     public void run() {
-        EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
-
-        while (true) {
-            engine.getEPRuntime().sendEvent(new SpeedSensor(1, readData()));
-
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException ex) {
-                System.out.println("Error" + ex);
-                Logger.getLogger(SpeedSensor.class.getName()).log(Level.SEVERE, null, ex);
-            }
+        synchronized (engine) {
+            // Sending the event to the Esper engine
+            while (true) engine.getEPRuntime().sendEvent(new SpeedSensor(1, readData()));
         }
     }
 }

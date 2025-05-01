@@ -1,3 +1,5 @@
+package Components;
+
 public class PowerSupplyMonitor {
     private boolean isPowerAvailable;
     private boolean backup = false;

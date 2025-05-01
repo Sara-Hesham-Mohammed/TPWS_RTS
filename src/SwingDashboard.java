@@ -1,9 +1,12 @@
 import Components.TrackSideTransmitter;
 
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
+import java.io.IOException;
 
 /**
  * Swing dashboard that auto-updates via push callbacks.
@@ -12,19 +15,23 @@ public class SwingDashboard {
 
     /* ── widgets ── */
     private final JLabel timerVal = bigLabel();
-    private final JLabel segVal   = bigLabel();
-    private final JLabel sigVal   = badgeLabel(Color.GRAY);
+    private final JLabel segVal = bigLabel();
+    private final JLabel sigVal = badgeLabel(Color.GRAY);
     private final JProgressBar speedGauge = new JProgressBar(0, 200);
 
-    /* ── core objects ── */
-    private final Timer                stopwatch = new Timer();
-    private final TrackSideTransmitter tx        =
-            new TrackSideTransmitter("01", "S-1A", 100, "GREEN", 3);
 
-    /* ── ctor ── */
-    public SwingDashboard() {
-        try { UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel"); }
-        catch (Exception ignored) {}
+
+    /* ── core objects ── */
+    private final Timer stopwatch = new Timer();
+    private final TPWSController controller = new TPWSController("TPWS_1", 100);
+    private final TrackSideTransmitter tx = new TrackSideTransmitter("01", "S-1A", 100, "GREEN", 3);
+
+
+    public SwingDashboard() throws UnsupportedAudioFileException, LineUnavailableException, IOException {
+        try {
+            UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel");
+        } catch (Exception ignored) {
+        }
 
         wireListeners();
         tx.start();
@@ -39,6 +46,7 @@ public class SwingDashboard {
         l.setFont(l.getFont().deriveFont(Font.BOLD, 28f));
         return l;
     }
+
     private static JLabel badgeLabel(Color c) {
         JLabel l = bigLabel();
         l.setOpaque(true);
@@ -71,10 +79,10 @@ public class SwingDashboard {
                     String s = value.toString();
                     sigVal.setText(s);
                     sigVal.setBackground(switch (s) {
-                        case "RED"    -> new Color(180, 35, 35);
+                        case "RED" -> new Color(180, 35, 35);
                         case "YELLOW" -> new Color(200, 130, 0);   // colour-blind-safe amber
-                        case "GREEN"  -> new Color( 25, 140, 60);
-                        default       -> Color.GRAY;
+                        case "GREEN" -> new Color(25, 140, 60);
+                        default -> Color.GRAY;
                     });
                 }
             }
@@ -91,7 +99,8 @@ public class SwingDashboard {
         card.setBackground(new Color(245, 245, 245));
 
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0; gbc.insets = new Insets(10, 15, 10, 15);
+        gbc.gridx = 0;
+        gbc.insets = new Insets(10, 15, 10, 15);
         gbc.anchor = GridBagConstraints.EAST;
 
         addRow(card, gbc, "Elapsed:", timerVal);
@@ -111,9 +120,10 @@ public class SwingDashboard {
 
         /* ensure background threads shut down */
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override public void windowClosing(java.awt.event.WindowEvent e) {
-                try (tx; stopwatch) { /* try-with-resources closes both */ }
-                catch (Exception ignored) {}
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                try (tx; stopwatch) { /* try-with-resources closes both */ } catch (Exception ignored) {
+                }
             }
         });
     }
@@ -129,7 +139,8 @@ public class SwingDashboard {
         gbc.gridx = 1;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         p.add(comp, gbc);
-        gbc.gridx = 0; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0;
+        gbc.fill = GridBagConstraints.NONE;
     }
 
     /* ── helpers ── */

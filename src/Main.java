@@ -41,10 +41,10 @@ public class main {
         Sensors.BrakeStatusSensor brakeStatusSensor = new Sensors.BrakeStatusSensor(4,0);
 
 
-        Thread speedThread = controller.EsperRun(engine,speedSensor,250);
+        Thread speedThread = controller.getEsperData(engine,speedSensor,250);
 //        Thread distanceThread = controller.EsperRun(engine,distanceSensor);
         //Thread weatherThread = controller.EsperRun(engine,weatherSensor);
-        Thread brakeThread = controller.EsperRun(engine,brakeStatusSensor,100);
+        Thread brakeThread = controller.getEsperData(engine,brakeStatusSensor,100);
 
         // Test each sensor
 

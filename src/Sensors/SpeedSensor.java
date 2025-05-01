@@ -39,10 +39,9 @@ public class SpeedSensor extends Sensor implements Runnable {
 
     @Override
     public void run() {
-        synchronized (engine) {
             // Sending the event to the Esper engine
             while (true) engine.getEPRuntime().sendEvent(new SpeedSensor(1, readData()));
-        }
+
     }
 }
 

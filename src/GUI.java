@@ -20,7 +20,7 @@ public class GUI {
     // Get engine reference
     EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
 
-    TPWSController controller = new TPWSController("TPWS_1",100,engine);
+    TPWSController controller = new TPWSController("TPWS_1",engine);
 
     /* widgets */
     private final JLabel timerVal = bigLabel();

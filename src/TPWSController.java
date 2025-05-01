@@ -11,7 +11,7 @@ public class TPWSController {
     //change current speed, get it mn el gps module
     private double currentSpeed;
     private double safeDistance;
-    private volatile double speedLimit = 0; // updated via Esper
+    private volatile double speedLimit; // updated via Esper
     private volatile String signalStatus;
 
     // Engine to set up subscribers w kda
@@ -24,6 +24,7 @@ public class TPWSController {
     private final SpeedSensor speedSensor = new SpeedSensor(1, 100);
 
     /** System Components init**/
+    private TrackSideTransmitter transmitter;
     private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
     private final PowerSupplyMonitor powerMonitor = new PowerSupplyMonitor();
@@ -34,7 +35,7 @@ public class TPWSController {
 
     public TPWSController(String controllerID, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         this.engine = engine;
-        TrackSideTransmitter transmitter = new TrackSideTransmitter("seg100", "100", 50, "green", 50, engine);
+        this.transmitter = new TrackSideTransmitter("seg100", "100", 50, "green",  engine);
         monitorConditions();
     }
 
@@ -137,9 +138,6 @@ public class TPWSController {
                         System.out.printf("\n NEW %s READING: %f ", sensorType.toUpperCase(), lastReading);
                         break;
                 }
-
-
-
             }
         });
         return new Thread((Runnable) sensor);
@@ -147,7 +145,7 @@ public class TPWSController {
 
     public void getTransmitterData() {
         //Get the Transmitter broadcast data every 50ms
-        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit " + "from TrackSideTransmitter.win:time(50 milliseconds)";
+        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit from TrackSideTransmitter.win:time(50 milliseconds)";
         EPStatement transmitterStatement = engine.getEPAdministrator().createEPL(eplTransmitter);
 
         //this sets the speed

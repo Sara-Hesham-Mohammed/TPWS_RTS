@@ -36,10 +36,10 @@ public class TPWSController {
     public TPWSController(String controllerID, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         this.engine = engine;
         this.transmitter = new TrackSideTransmitter("seg100", "100", 50, "green",  engine);
-        monitorConditions();
+        monitorConditions(transmitter);
     }
 
-    public void monitorConditions() {
+    public void monitorConditions(TrackSideTransmitter trans) {
         if (!powerMonitor.checkPower()) {
             System.out.println("Power failure detected.");
             // maybe make it RETURN the string so it can be used in a pop up or smth in the GUI
@@ -52,7 +52,7 @@ public class TPWSController {
         }
 
         // receive data from esper engine
-        getTransmitterData();
+        Thread transThread = getTransmitterData(trans);
 
         // get all the sensor data from esper engine + start their threads
         Thread speedThread = getSensorData(engine, speedSensor, 250);
@@ -63,6 +63,7 @@ public class TPWSController {
         brakeThread.start();
         distanceThread.start();
         weatherThread.start();
+        transThread.start();
     }
 
     /* Synchronization for the stuff that modifies the values/ writes ONLY*/
@@ -143,7 +144,7 @@ public class TPWSController {
         return new Thread((Runnable) sensor);
     }
 
-    public void getTransmitterData() {
+    public Thread getTransmitterData(TrackSideTransmitter transmitter) {
         //Get the Transmitter broadcast data every 50ms
         String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit from TrackSideTransmitter.win:time(50 milliseconds)";
         EPStatement transmitterStatement = engine.getEPAdministrator().createEPL(eplTransmitter);
@@ -156,6 +157,8 @@ public class TPWSController {
                 System.out.printf("SEG=%s SIG=%s LIM=%f%n", segmentIdentifier, signalStatus, speedLimit);
             }
         });
+
+        return new Thread((Runnable) transmitter);
     }
 
 }

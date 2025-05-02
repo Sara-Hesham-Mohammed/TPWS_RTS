@@ -17,14 +17,18 @@ public class TPWSController {
     // Engine to set up subscribers w kda
     private EPServiceProvider engine = null;
 
-    /** Sensors init **/
+    /**
+     * Sensors init
+     **/
     private final WeatherSensor weatherSensor = new WeatherSensor(1);
     private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(1, 0);
     private final DistanceSensor distanceSensor = new DistanceSensor(1, 0);
     private final SpeedSensor speedSensor = new SpeedSensor(1, 100);
 
-    /** System Components init**/
-    private TrackSideTransmitter transmitter;
+    /**
+     * System Components init
+     **/
+    private TrackSideTransmitterEvent transmitter;
     private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
     private final PowerSupplyMonitor powerMonitor = new PowerSupplyMonitor();
@@ -32,14 +36,31 @@ public class TPWSController {
     private final GPSModule gps = new GPSModule(20.0, 30.0, 60.0);
 
 
-
     public TPWSController(String controllerID, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         this.engine = engine;
-        this.transmitter = new TrackSideTransmitter("seg100", "100", 50, "green",  engine);
-        monitorConditions(transmitter);
+        // Registering the events
+        engine.getEPAdministrator().getConfiguration().addEventType(SpeedSensor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(BrakeStatusSensor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(DistanceSensor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(WeatherSensor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(TrackSideTransmitterEvent.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(PowerSupplyMonitor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(SignalStatusMonitor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(EmergencyBrakingSystem.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(GPSModule.class);
+
+        this.transmitter = new TrackSideTransmitterEvent("seg100", "100", 50, "green");
+
+        monitorConditions();
     }
 
-    public void monitorConditions(TrackSideTransmitter trans) {
+    public void monitorConditions() {
+        System.out.println("Monitoring conditions...");
+        // receive data from esper engine
+        System.out.println("DEBUG LINE");
+        getTransmitterData();
+        System.out.println("DEBUG LINE 2");
         if (!powerMonitor.checkPower()) {
             System.out.println("Power failure detected.");
             // maybe make it RETURN the string so it can be used in a pop up or smth in the GUI
@@ -51,19 +72,15 @@ public class TPWSController {
             System.out.println("Signal is STOP. Applying brakes.");
         }
 
-        // receive data from esper engine
-        Thread transThread = getTransmitterData(trans);
-
-        // get all the sensor data from esper engine + start their threads
-        Thread speedThread = getSensorData(engine, speedSensor, 250);
-        Thread brakeThread = getSensorData(engine, brakeStatusSensor, 100);
-        Thread distanceThread = getSensorData(engine, distanceSensor, 100);
-        Thread weatherThread = getSensorData(engine, weatherSensor, 100);
-        speedThread.start();
-        brakeThread.start();
-        distanceThread.start();
-        weatherThread.start();
-        transThread.start();
+//        // get all the sensor data from esper engine + start their threads
+//        Thread speedThread = getSensorData(engine, speedSensor, 250);
+//        Thread brakeThread = getSensorData(engine, brakeStatusSensor, 100);
+//        Thread distanceThread = getSensorData(engine, distanceSensor, 100);
+//        Thread weatherThread = getSensorData(engine, weatherSensor, 100);
+//        speedThread.start();
+//        brakeThread.start();
+//        distanceThread.start();
+//        weatherThread.start();
     }
 
     /* Synchronization for the stuff that modifies the values/ writes ONLY*/
@@ -110,7 +127,9 @@ public class TPWSController {
         String[] sensorString = String.valueOf(sensor).split("@");
         String sensorType = sensorString[0];
         // Creating EPL statement
-        EPStatement select_statement = engine.getEPAdministrator().createEPL("select lastReading from " + sensorType + "timer:interval(" + time + " milliseconds)");
+        //timer NOT WORKING
+       // EPStatement select_statement = engine.getEPAdministrator().createEPL("select lastReading from " + sensorType + " timer:interval(" + time + " milliseconds)");
+        EPStatement select_statement = engine.getEPAdministrator().createEPL("select lastReading from " + sensorType);
 
         // Attaching callback to EPL statements
         select_statement.setSubscriber(new Object() {
@@ -144,9 +163,9 @@ public class TPWSController {
         return new Thread((Runnable) sensor);
     }
 
-    public Thread getTransmitterData(TrackSideTransmitter transmitter) {
+    public void getTransmitterData() {
         //Get the Transmitter broadcast data every 50ms
-        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit from TrackSideTransmitter.win:time(50 milliseconds)";
+        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit from Components.TrackSideTransmitterEvent.win:time(50 milliseconds)";
         EPStatement transmitterStatement = engine.getEPAdministrator().createEPL(eplTransmitter);
 
         //this sets the speed
@@ -157,8 +176,6 @@ public class TPWSController {
                 System.out.printf("SEG=%s SIG=%s LIM=%f%n", segmentIdentifier, signalStatus, speedLimit);
             }
         });
-
-        return new Thread((Runnable) transmitter);
     }
 
 }

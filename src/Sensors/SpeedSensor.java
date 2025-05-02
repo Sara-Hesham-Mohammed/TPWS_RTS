@@ -1,13 +1,13 @@
 package Sensors;
 
 import com.espertech.esper.client.EPServiceProvider;
+import com.espertech.esper.client.EPServiceProviderManager;
 
 import java.util.Random;
 
 public class SpeedSensor extends Sensor implements Runnable {
     private static final Random random = new Random();
     double maxVoltage = 10;
-    EPServiceProvider engine;
 
 
     public SpeedSensor(int id, double lastReading) {
@@ -31,7 +31,7 @@ public class SpeedSensor extends Sensor implements Runnable {
 
     }
 
-    private double measureSpeed(){
+    private double measureSpeed() {
         //mimicking the "real" way of getting speed from a sensor
         double minVoltage = 0;
         return minVoltage + (maxVoltage - minVoltage) * random.nextDouble();
@@ -39,8 +39,9 @@ public class SpeedSensor extends Sensor implements Runnable {
 
     @Override
     public void run() {
-            // Sending the event to the Esper engine
-            while (true) engine.getEPRuntime().sendEvent(new SpeedSensor(1, readData()));
+        EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
+        // Sending the event to the Esper engine
+        while (true) engine.getEPRuntime().sendEvent(new SpeedSensor(1, readData()));
 
     }
 }

@@ -23,7 +23,7 @@ public class main {
         TPWSController controller = new TPWSController("TPWS_1",engine);
 
         engine.getEPAdministrator().getConfiguration().addEventType(TrackSideTransmitterEvent.class);
-        
+
         // Registering the events
         System.out.println("=== test ===");
         controller.getTransmitterData();

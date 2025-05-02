@@ -26,7 +26,6 @@ public class TrackSideTransmitter implements AutoCloseable {
     /* ── configuration ── */
     private static final int BROADCAST_MS = 50;           // 20 Hz
     private final int cycleSeconds;
-    private final EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
 
     /* ── live state ── */
     private String transmitterID;      // never null after ctor
@@ -87,10 +86,6 @@ public class TrackSideTransmitter implements AutoCloseable {
             l.onBroadcast("speedLimit",  speedLimit,        now);
             l.onBroadcast("signal",      signalStatus,      now);
         });
-
-        engine.getEPRuntime().sendEvent(
-                new TrackSideTransmitterEvent(transmitterID,segmentIdentifier, speedLimit, signalStatus)
-        );
     }
 
     private void randomise() {

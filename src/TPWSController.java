@@ -28,7 +28,7 @@ public class TPWSController {
     /**
      * System Components init
      **/
-    private TrackSideTransmitterEvent transmitter;
+    private TrackSideTransmitterEvent transmitterEvent;
     private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
     private final PowerSupplyMonitor powerMonitor = new PowerSupplyMonitor();
@@ -38,6 +38,7 @@ public class TPWSController {
 
     public TPWSController(String controllerID, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         this.engine = engine;
+        this.transmitterEvent = new TrackSideTransmitterEvent();
         // Registering the events
         engine.getEPAdministrator().getConfiguration().addEventType(SpeedSensor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(BrakeStatusSensor.class);
@@ -50,7 +51,6 @@ public class TPWSController {
         engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.class);
         engine.getEPAdministrator().getConfiguration().addEventType(GPSModule.class);
 
-        this.transmitter = new TrackSideTransmitterEvent("seg100", "100", 50, "green");
 
         monitorConditions();
     }
@@ -71,6 +71,8 @@ public class TPWSController {
         if ("STOP".equalsIgnoreCase(status)) {
             System.out.println("Signal is STOP. Applying brakes.");
         }
+        Thread transmitterThread = new Thread(transmitterEvent);
+        transmitterThread.start();
 
 //        // get all the sensor data from esper engine + start their threads
 //        Thread speedThread = getSensorData(engine, speedSensor, 250);
@@ -163,9 +165,9 @@ public class TPWSController {
         return new Thread((Runnable) sensor);
     }
 
-    public void getTransmitterData() {
+    public synchronized void getTransmitterData() {
         //Get the Transmitter broadcast data every 50ms
-        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit from Components.TrackSideTransmitterEvent.win:time(50 milliseconds)";
+        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit from Components.TrackSideTransmitter.win:time(50 milliseconds)";
         EPStatement transmitterStatement = engine.getEPAdministrator().createEPL(eplTransmitter);
 
         //this sets the speed

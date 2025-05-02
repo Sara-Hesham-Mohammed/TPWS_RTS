@@ -22,12 +22,6 @@ public class main {
         EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
         TPWSController controller = new TPWSController("TPWS_1",engine);
 
-        engine.getEPAdministrator().getConfiguration().addEventType(TrackSideTransmitterEvent.class);
-
-        // Registering the events
-        System.out.println("=== test ===");
-        controller.getTransmitterData();
-        System.out.println("GETTING TRANS DATA2");
 
     }
 }

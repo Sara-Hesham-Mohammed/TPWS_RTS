@@ -17,17 +17,13 @@ public class TPWSController {
     // Engine to set up subscribers w kda
     private EPServiceProvider engine = null;
 
-    /**
-     * Sensors init
-     **/
+    /**Sensors init**/
     private final WeatherSensor weatherSensor = new WeatherSensor(1);
     private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(1, 0);
     private final DistanceSensor distanceSensor = new DistanceSensor(1, 0);
     private final SpeedSensor speedSensor = new SpeedSensor(1, 100);
 
-    /**
-     * System Components init
-     **/
+    /**System Components init**/
     private TrackSideTransmitterEvent transmitterEvent;
     private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
@@ -45,6 +41,7 @@ public class TPWSController {
         engine.getEPAdministrator().getConfiguration().addEventType(DistanceSensor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(WeatherSensor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(TrackSideTransmitterEvent.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(TrackSideTransmitter.class);
         engine.getEPAdministrator().getConfiguration().addEventType(PowerSupplyMonitor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(SignalStatusMonitor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(EmergencyBrakingSystem.class);
@@ -58,9 +55,6 @@ public class TPWSController {
     public void monitorConditions() {
         System.out.println("Monitoring conditions...");
         // receive data from esper engine
-        System.out.println("DEBUG LINE");
-        getTransmitterData();
-        System.out.println("DEBUG LINE 2");
         if (!powerMonitor.checkPower()) {
             System.out.println("Power failure detected.");
             // maybe make it RETURN the string so it can be used in a pop up or smth in the GUI
@@ -71,18 +65,19 @@ public class TPWSController {
         if ("STOP".equalsIgnoreCase(status)) {
             System.out.println("Signal is STOP. Applying brakes.");
         }
+
+        // get all the sensor data from esper engine + start their threads
+        Thread speedThread = getSensorData(engine, speedSensor, 250);
+        Thread brakeThread = getSensorData(engine, brakeStatusSensor, 100);
+        Thread distanceThread = getSensorData(engine, distanceSensor, 100);
+        Thread weatherThread = getSensorData(engine, weatherSensor, 100);
+        speedThread.start();
+        brakeThread.start();
+        distanceThread.start();
+        weatherThread.start();
+
         Thread transmitterThread = new Thread(transmitterEvent);
         transmitterThread.start();
-
-//        // get all the sensor data from esper engine + start their threads
-//        Thread speedThread = getSensorData(engine, speedSensor, 250);
-//        Thread brakeThread = getSensorData(engine, brakeStatusSensor, 100);
-//        Thread distanceThread = getSensorData(engine, distanceSensor, 100);
-//        Thread weatherThread = getSensorData(engine, weatherSensor, 100);
-//        speedThread.start();
-//        brakeThread.start();
-//        distanceThread.start();
-//        weatherThread.start();
     }
 
     /* Synchronization for the stuff that modifies the values/ writes ONLY*/
@@ -129,9 +124,7 @@ public class TPWSController {
         String[] sensorString = String.valueOf(sensor).split("@");
         String sensorType = sensorString[0];
         // Creating EPL statement
-        //timer NOT WORKING
-       // EPStatement select_statement = engine.getEPAdministrator().createEPL("select lastReading from " + sensorType + " timer:interval(" + time + " milliseconds)");
-        EPStatement select_statement = engine.getEPAdministrator().createEPL("select lastReading from " + sensorType);
+        EPStatement select_statement = engine.getEPAdministrator().createEPL("select lastReading from " + sensorType + ".win:time(" + time + "  milliseconds)");
 
         // Attaching callback to EPL statements
         select_statement.setSubscriber(new Object() {
@@ -152,6 +145,11 @@ public class TPWSController {
                         break;
                     case "distanceSensor":
                         safeDistance = lastReading;
+                        if (safeDistance <= 10) {
+                            //can only receive the data if the distance is 10m
+                            System.out.println("Transmitter data received.");
+                            getTransmitterData();
+                        }
                         // When the train is close enough to read the signal (can know if it's red nor not)
                         // then it checks if it needs to stop
                         stopTrain();

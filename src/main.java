@@ -16,7 +16,7 @@ public class main {
 
         // Registering the events
         engine.getEPAdministrator().getConfiguration().addEventType(SpeedSensor.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.SpeedEvent.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.BuzzerEvent.class); // <-- Register new activation event
 
         // SENSORS INITIALIZATION
         SpeedSensor speedSensor = new SpeedSensor(1, 100);
@@ -33,27 +33,21 @@ public class main {
         System.out.println("=== Testing Speed Sensor WITH THREADS ===");
         speedThread.start();
 
-        // Initialize GPSModule and Screen
+
         GPSModule gpsModule = new GPSModule(37.7749, -122.4194, 60);
         Screen screen = new Screen();
 
-        // Initialize and test WarningBuzzer
         WarningBuzzer buzzer = new WarningBuzzer();
 
-        // Simulate GPS update and display info
         gpsModule.updateGPS(37.7750, -122.4195, 80);
         screen.displaySpeed(gpsModule.getSpeed());
         screen.displaySignalStatus("Green");
 
-        // Trigger WarningBuzzer based on simulated speeds
-        try {
-            buzzer.sendSpeedEvent(76, 70); // Exceeds limit by 6 km/h
-            screen.displayWarning("Speed Limit Exceeded!");
-            Thread.sleep(500);
 
-            buzzer.sendSpeedEvent(72, 70); // Exceeds limit by 2 km/h (may or may not trigger)
-            screen.displayWarning("Check Speed");
-            Thread.sleep(500);
+        try {
+            buzzer.sendActivationEvent(true); // Manual activation logic
+            screen.displayWarning("Manual activation of buzzer!");
+            Thread.sleep(1000);
 
             buzzer.stopBuzzer();
             screen.displayInfo("Buzzer stopped.");

@@ -9,35 +9,26 @@ public class WarningBuzzer {
     private boolean isOn = false;
 
     public WarningBuzzer() {
-
         EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
 
+        // Register BuzzerEvent (boolean-based event for activation)
+        engine.getEPAdministrator().getConfiguration().addEventType(BuzzerEvent.class);
 
-        engine.getEPAdministrator().getConfiguration().addEventType(SpeedEvent.class);
-
-        String epl = "select speed, limit from SpeedEvent where speed > limit + 5 and speed <= limit + 10";
+        // EPL: Listen for activation events where isActive = true
+        String epl = "select isActive from BuzzerEvent where isActive = true";
 
         EPStatement statement = engine.getEPAdministrator().createEPL(epl);
-
         statement.setSubscriber(new Object() {
-            public void update(double speed, double limit) {
-                activateBuzzer(speed, limit);
+            public void update(boolean isActive) {
+                activateBuzzer();
             }
         });
     }
 
-    // Send a speed event to Esper
-    public void sendSpeedEvent(double speed, double limit) {
-        EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
-        engine.getEPRuntime().sendEvent(new SpeedEvent(speed, limit));
-    }
-
-    // Activate the buzzer if not already on
-    private void activateBuzzer(double speed, double limit) {
+    public void activateBuzzer() {
         if (!isOn) {
             isOn = true;
-            System.out.println("WARNING BUZZER: Speed = " + speed + " km/h, Limit = " + limit + " km/h");
-            System.out.println("WARNING BUZZER: Activated due to overspeed!");
+            System.out.println("WARNING BUZZER: Activated due to external trigger!");
         }
     }
 
@@ -48,24 +39,21 @@ public class WarningBuzzer {
         }
     }
 
+    public void sendActivationEvent(boolean isActive) {
+        EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
+        engine.getEPRuntime().sendEvent(new BuzzerEvent(isActive));
+    }
 
-    public static class SpeedEvent {
-        private double speed;
-        private double limit;
 
-        public SpeedEvent(double speed, double limit) {
-            this.speed = speed;
-            this.limit = limit;
+    public static class BuzzerEvent {
+        private boolean isActive;
+
+        public BuzzerEvent(boolean isActive) {
+            this.isActive = isActive;
         }
 
-        public double getSpeed() {
-            return speed;
-        }
-
-        public double getLimit() {
-            return limit;
+        public boolean isActive() {
+            return isActive;
         }
     }
 }
-
-

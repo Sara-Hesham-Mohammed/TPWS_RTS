@@ -1,4 +1,5 @@
-/*GUI Imports*/
+package GUIs;/*GUIs.GUI Imports*/
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
@@ -16,17 +17,14 @@ import java.io.IOException;
 
 public class GUI {
 
-    /* Controller and Esper engine*/
-    // Get engine reference
-    EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
-
-    TPWSController controller = new TPWSController("TPWS_1",engine);
-
     /* widgets */
     private final JLabel timerVal = bigLabel();
     private final JLabel segVal = bigLabel();
     private final JLabel sigVal = badgeLabel(Color.GRAY);
     private final JProgressBar speedGauge = new JProgressBar(0, 200);
+    JFrame frame;
+
+    // ⬇ Add this field    private JFrame frame;
 
     public GUI() throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         try {
@@ -44,7 +42,6 @@ public class GUI {
         createGui();
     }
 
-    /* ── builder helpers ── */
     private static JLabel bigLabel() {
         JLabel l = new JLabel("--", SwingConstants.CENTER);
         l.setFont(l.getFont().deriveFont(Font.BOLD, 28f));
@@ -60,10 +57,23 @@ public class GUI {
         return l;
     }
 
-    /* ── GUI construction ── */
+    private static void addRow(JPanel p, GridBagConstraints gbc,
+                               String caption, JComponent comp) {
+        JLabel cap = new JLabel(caption, SwingConstants.RIGHT);
+        cap.setFont(cap.getFont().deriveFont(Font.BOLD, 15f));
+
+        gbc.gridy++;
+        p.add(cap, gbc);
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        p.add(comp, gbc);
+        gbc.gridx = 0;
+        gbc.fill = GridBagConstraints.NONE;
+    }
+
     private void createGui() {
-        JFrame frame = new JFrame("Dashboard");
-        frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        frame = new JFrame("Dashboard"); // ⬅ Use instance field        frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 
         JPanel card = new JPanel(new GridBagLayout());
         card.setBorder(new EmptyBorder(20, 30, 20, 30));
@@ -89,61 +99,41 @@ public class GUI {
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
-
-    private static void addRow(JPanel p, GridBagConstraints gbc,
-                               String caption, JComponent comp) {
-        JLabel cap = new JLabel(caption, SwingConstants.RIGHT);
-        cap.setFont(cap.getFont().deriveFont(Font.BOLD, 15f));
-
-        gbc.gridy++;
-        p.add(cap, gbc);
-
-        gbc.gridx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        p.add(comp, gbc);
-        gbc.gridx = 0;
-        gbc.fill = GridBagConstraints.NONE;
+    public void updateSegment(String segment) {
+        SwingUtilities.invokeLater(() -> segVal.setText(segment));
     }
 
-    /* ── launcher ── */
-    public static void main(String[] args) {
-        Logger.getRootLogger().setLevel(Level.OFF);
+    public void updateSpeed(double speedValue) {
         SwingUtilities.invokeLater(() -> {
-            try {
-                new GUI();
-            } catch (UnsupportedAudioFileException | LineUnavailableException | IOException  e) {
-                throw new RuntimeException(e);
-            }
+            speedGauge.setValue((int) speedValue);
+            speedGauge.setString(speedValue + " km/h");
         });
     }
 
-    /**
-     * Example of how to update values (for demonstration)
-     */
-    public void updateTimer(String timeText) {
-        timerVal.setText(timeText);
-    }
-
-    public void updateSegment(String segment) {
-        segVal.setText(segment);
-    }
-
-    public void updateSpeed(int speedValue) {
-        speedGauge.setValue(speedValue);
-        speedGauge.setString(speedValue + " km/h");
-    }
-
     public void updateSignal(String signalStatus) {
-        sigVal.setText(signalStatus);
+        SwingUtilities.invokeLater(() -> {
+            sigVal.setText(signalStatus);
 
-        Color signalColor = switch (signalStatus) {
-            case "RED" -> new Color(180, 35, 35);
-            case "YELLOW" -> new Color(200, 130, 0);   // colour-blind-safe amber
-            case "GREEN" -> new Color(25, 140, 60);
-            default -> Color.GRAY;
-        };
+            Color signalColor = switch (signalStatus) {
+                case "RED" -> new Color(180, 35, 35);
+                case "YELLOW" -> new Color(200, 130, 0);
+                case "GREEN" -> new Color(25, 140, 60);
+                default -> Color.GRAY;
+            };
 
-        sigVal.setBackground(signalColor);
+            sigVal.setBackground(signalColor);
+        });
+    }
+
+
+    
+    public void showGUI(String message) {
+        System.out.println("Showing GUI with message: " + message); // for debug
+        frame.setVisible(true);
+    }
+
+
+    public void hideGUI() {
+        frame.setVisible(false);
     }
 }
-

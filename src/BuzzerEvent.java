@@ -20,7 +20,7 @@ public class BuzzerEvent {
         engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.class);
 
         // EPL: Listen for activation events where isActive = true
-        String epl = "select isActive from BuzzerEvent where isActive = true";
+        String epl = "select isActive from WarningBuzzer where isActive = true";
 
         EPStatement statement = engine.getEPAdministrator().createEPL(epl);
         statement.setSubscriber(new Object() {

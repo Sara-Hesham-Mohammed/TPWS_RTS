@@ -1,13 +1,20 @@
 import Components.*;
+import GUIs.AlertGUI;
+import GUIs.GUI;
 import Sensors.*;
 import com.espertech.esper.client.EPServiceProvider;
 import com.espertech.esper.client.EPStatement;
 
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.swing.*;
 import java.io.IOException;
 
 public class TPWSController {
+    /*** GUIs Init ***/
+    private GUI mainGUI;
+    private AlertGUI alertGUI;
+
     //change current speed, get it mn el gps module
     private double currentSpeed;
     private double safeDistance;
@@ -35,6 +42,10 @@ public class TPWSController {
     public TPWSController(String controllerID, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         this.engine = engine;
         this.transmitterEvent = new TrackSideTransmitterEvent();
+        this.alertGUI = new AlertGUI();
+        this.mainGUI = new GUI();
+        this.mainGUI.showGUI("SHOWING GUI IN CONRTOLLER");
+
         // Registering the events
         engine.getEPAdministrator().getConfiguration().addEventType(SpeedSensor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(BrakeStatusSensor.class);
@@ -46,6 +57,7 @@ public class TPWSController {
         engine.getEPAdministrator().getConfiguration().addEventType(SignalStatusMonitor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(EmergencyBrakingSystem.class);
         engine.getEPAdministrator().getConfiguration().addEventType(BuzzerEvent.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.class);
         engine.getEPAdministrator().getConfiguration().addEventType(GPSModule.class);
 
 
@@ -57,7 +69,7 @@ public class TPWSController {
         // receive data from esper engine
         if (!powerMonitor.checkPower()) {
             System.out.println("Power failure detected.");
-            // maybe make it RETURN the string so it can be used in a pop up or smth in the GUI
+            // maybe make it RETURN the string so it can be used in a pop up or smth in the GUIs.GUI
             powerMonitor.alertPowerFailure();
             powerMonitor.activateBackup();
         }
@@ -91,6 +103,8 @@ public class TPWSController {
 
     public synchronized void activateWarningSound() {
         if (currentSpeed > speedLimit + 5) {
+            alertGUI.showMessage("testing in controller!");
+            alertGUI.setVisible(true);
             buzzer.activateBuzzer();
             System.out.println("BUZZER ACTIVATED. OVER SPEED LIMIT. PLEASE REDUCE SPEED");
         } else buzzer.stopBuzzer();
@@ -135,6 +149,7 @@ public class TPWSController {
                         currentSpeed = lastReading;
                         // Check speed limits and warnings and activate the buzzer if necessary
                         activateWarningSound();
+                        SwingUtilities.invokeLater(() -> mainGUI.updateSpeed(currentSpeed));
                         // reduce speed if necessary
                         reduceSpeed();
                         break;

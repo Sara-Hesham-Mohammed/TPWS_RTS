@@ -25,6 +25,10 @@ public class WarningBuzzer {
 
     }
 
+    public boolean isIsActive() {
+        return isActive;
+    }
+
     public void stopBuzzer() {
         isActive = false;
         clip.close();

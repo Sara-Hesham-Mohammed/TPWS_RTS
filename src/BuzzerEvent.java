@@ -1,18 +1,23 @@
 
 
+import Components.WarningBuzzer;
 import com.espertech.esper.client.EPServiceProvider;
 import com.espertech.esper.client.EPServiceProviderManager;
 import com.espertech.esper.client.EPStatement;
 
-public class WarningBuzzer {
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
+import java.io.IOException;
+
+public class BuzzerEvent {
 
     private boolean isOn = false;
 
-    public WarningBuzzer() {
+    public BuzzerEvent() {
         EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
 
         // Register BuzzerEvent (boolean-based event for activation)
-        engine.getEPAdministrator().getConfiguration().addEventType(BuzzerEvent.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.class);
 
         // EPL: Listen for activation events where isActive = true
         String epl = "select isActive from BuzzerEvent where isActive = true";
@@ -39,21 +44,10 @@ public class WarningBuzzer {
         }
     }
 
-    public void sendActivationEvent(boolean isActive) {
+    public void sendActivationEvent(boolean isActive) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         EPServiceProvider engine = EPServiceProviderManager.getDefaultProvider();
-        engine.getEPRuntime().sendEvent(new BuzzerEvent(isActive));
+        engine.getEPRuntime().sendEvent(new WarningBuzzer(isActive));
     }
 
 
-    public static class BuzzerEvent {
-        private boolean isActive;
-
-        public BuzzerEvent(boolean isActive) {
-            this.isActive = isActive;
-        }
-
-        public boolean isActive() {
-            return isActive;
-        }
-    }
 }

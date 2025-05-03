@@ -28,7 +28,7 @@ public class TPWSController {
     private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
     private final PowerSupplyMonitor powerMonitor = new PowerSupplyMonitor();
-    private final WarningBuzzer buzzer = new WarningBuzzer();
+    private final BuzzerEvent buzzer = new BuzzerEvent();
     private final GPSModule gps = new GPSModule(20.0, 30.0, 60.0);
 
 
@@ -45,7 +45,7 @@ public class TPWSController {
         engine.getEPAdministrator().getConfiguration().addEventType(PowerSupplyMonitor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(SignalStatusMonitor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(EmergencyBrakingSystem.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(BuzzerEvent.class);
         engine.getEPAdministrator().getConfiguration().addEventType(GPSModule.class);
 
 

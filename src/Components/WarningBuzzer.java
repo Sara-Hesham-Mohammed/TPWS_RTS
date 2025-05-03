@@ -5,16 +5,17 @@ import java.io.File;
 import java.io.IOException;
 
 public class WarningBuzzer {
-    private boolean isOn;
+    private boolean isActive;
     String audioFilePath = "src/audio/buzzer.wav";
     AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(new File(audioFilePath));
     Clip clip = AudioSystem.getClip();
 
-    public WarningBuzzer() throws UnsupportedAudioFileException, IOException, LineUnavailableException {
+    public WarningBuzzer(boolean isActive) throws UnsupportedAudioFileException, IOException, LineUnavailableException {
+        this.isActive = isActive;
     }
 
     public void activateBuzzer() {
-        isOn = true;
+        isActive = true;
         try {
             clip.open(audioInputStream);
             clip.start();
@@ -25,7 +26,7 @@ public class WarningBuzzer {
     }
 
     public void stopBuzzer() {
-        isOn = false;
+        isActive = false;
         clip.close();
         clip.stop();
     }

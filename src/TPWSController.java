@@ -1,6 +1,6 @@
 import Components.*;
 import GUIs.AlertGUI;
-import GUIs.GUI;
+import GUIs.Dashboard;
 import Sensors.*;
 import com.espertech.esper.client.EPServiceProvider;
 import com.espertech.esper.client.EPStatement;
@@ -12,17 +12,18 @@ import java.io.IOException;
 
 public class TPWSController {
     /*** GUIs Init ***/
-    private GUI mainGUI;
+//    private GUI mainGUI;
+    private Dashboard mainGUI;
     private AlertGUI alertGUI;
 
-    //change current speed, get it mn el gps module
+    /**** Some Local vars (bc. they're shared between diff fns)****/
     private double currentSpeed;
     private double safeDistance;
     private volatile double speedLimit; // updated via Esper
     private volatile String signalStatus;
     private volatile String segmentIdentifier;
 
-    // Engine to set up subscribers w kda
+    /*** Engine to set up subscribers w kda ****/
     private EPServiceProvider engine = null;
 
     /**
@@ -44,18 +45,20 @@ public class TPWSController {
     private final GPSModule gps = new GPSModule(20.0, 30.0, 60.0);
 
 
+    /***Lock objects (new sync attempt bc it's not rlly working 3dl :( )***/
+    private final Object speedLock = new Object();
+    private final Object brakeLock = new Object();
+    private final Object transLock = new Object();
+
     public TPWSController(String controllerID, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         this.engine = engine;
         this.transmitterEvent = new TrackSideTransmitterEvent();
         registerEvents();
         SwingUtilities.invokeLater(() -> {
-            try {
                 this.alertGUI = new AlertGUI();
-                this.mainGUI = new GUI();
-                this.mainGUI.showGUI("SHOWING GUI IN CONTROLLER");
-            } catch (UnsupportedAudioFileException | LineUnavailableException | IOException e) {
-                e.printStackTrace();
-            }
+                this.mainGUI = new Dashboard();
+                this.mainGUI.showGUI();
+
         });
         // Wait senna for GUI init
         try {
@@ -71,11 +74,13 @@ public class TPWSController {
         // receive data from esper engine
         if (!powerMonitor.checkPower()) {
             System.out.println("Power failure detected.");
-            // maybe make it RETURN the string so it can be used in a pop up or smth in the GUIs.GUI
+            updateGUIPowerStatus("Power Failure");
             powerMonitor.alertPowerFailure();
             powerMonitor.activateBackup();
         }
+
         String status = signalMonitor.getSignalStatus();
+        updateGUISignalStatus(status);
         if ("STOP".equalsIgnoreCase(status)) {
             System.out.println("Signal is STOP. Applying brakes.");
         }
@@ -111,16 +116,27 @@ public class TPWSController {
     }
 
     /* Synchronization for the stuff that modifies the values/ writes ONLY*/
-    public synchronized void checkBrakes() {
-        if (brakeStatusSensor.getBrakeStatus()) {
-            System.out.println("Brake status: OK");
-        } else {
-            System.out.println("Brakes status: in need of maintenance. Please check.");
+    public void checkBrakes() {
+        synchronized (brakeLock) {
+            if (brakeStatusSensor.getBrakeStatus()) {
+                System.out.println("Brake status: OK");
+            } else {
+                System.out.println("Brakes status: in need of maintenance. Please check.");
+            }
         }
+
     }
 
-    public synchronized void activateWarningSound() {
-        if (currentSpeed > speedLimit + 5) {
+    public void activateWarningSound() {
+        double localSpeed;
+        double localSpeedLimit;
+
+        // Only synchronize the write method bs
+        synchronized (speedLock) {
+            localSpeed = currentSpeed;
+            localSpeedLimit = speedLimit;
+        }
+        if (localSpeed > localSpeedLimit + 5) {
             SwingUtilities.invokeLater(() -> {
                 if (alertGUI != null) {
                     alertGUI.showMessage("SPEED WARNING: Exceeding speed limit!");
@@ -131,33 +147,66 @@ public class TPWSController {
             System.out.println("BUZZER ACTIVATED. OVER SPEED LIMIT. PLEASE REDUCE SPEED");
         } else {
             buzzer.stopBuzzer();
-            alertGUI.setVisible(false);
+            SwingUtilities.invokeLater(() -> alertGUI.setVisible(false));
         }
 
     }
 
-    public synchronized void reduceSpeed() {
-        while (currentSpeed > speedLimit + 10) {
+    public void reduceSpeed() {
+        while (true) {
+            double localCurrentSpeed;
+            double localSpeedLimit;
+
+            synchronized (speedLock) {
+                localCurrentSpeed = currentSpeed;
+                localSpeedLimit = speedLimit;
+                if (localCurrentSpeed <= localSpeedLimit + 10) {
+                    break;
+                }
+                currentSpeed -= 10;
+            }
+
             brakingSystem.applyBrakes();
-            updateGUISpeed(currentSpeed);
-            currentSpeed -= 10;
+            updateGUISpeed(localCurrentSpeed - 10);
             System.out.println("Reducing speed. Brakes engaged.");
-        }
-    }
 
-    public synchronized void stopTrain() {
-        while (signalStatus.equalsIgnoreCase("red")) {
-            if (currentSpeed <= 0) {
-                currentSpeed = 0; // ensure it doesn't go negative
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 break;
             }
-            //engage brakes and decrement speed
-            brakingSystem.applyBrakes();
-            currentSpeed -= 10;
-
-            System.out.println("Train stopping.");
         }
     }
+
+    public void stopTrain() {
+        while (signalStatus.equalsIgnoreCase("red")) {
+            double localCurrentSpeed;
+            synchronized (speedLock) {
+                localCurrentSpeed = currentSpeed;
+                if (localCurrentSpeed <= 0) {
+                    currentSpeed = 0; // Ensure speed doesn't go negative
+                    break; // Exit loop if speed is 0 or below
+                }
+                currentSpeed = Math.max(0, localCurrentSpeed - 10); // Decrement speed but don't go below 0
+            }
+
+            // Engage brakes
+            brakingSystem.applyBrakes();
+            updateGUISpeed(currentSpeed);
+            System.out.println("Train stopping. Current speed: " + currentSpeed);
+
+            // timing
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+
 
     // Function for receiving the sensor event(whatever event) continuously every X time interval
     public Thread getSensorData(EPServiceProvider engine, Sensor sensor, int time) {
@@ -172,16 +221,16 @@ public class TPWSController {
                 switch (sensorType) {
                     case "Sensors.SpeedSensor":
                         currentSpeed = lastReading;
-                        // Check speed limits and warnings and activate the buzzer if necessary
+                        // checks if needs warning
                         activateWarningSound();
                         System.out.printf("Current speed: " + currentSpeed);
                         updateGUISpeed(currentSpeed);
-                        // reduce speed if necessary
                         reduceSpeed();
                         break;
                     case "Sensors.BrakeStatusSensor":
                         if (lastReading != 1) {
                             checkBrakes();
+                            updateGUIBrakeStatus(brakeStatusSensor.getBrakeStatus() ? "OK" : "NOT OK");
                         }
                         break;
                     case "Sensors.DistanceSensor":
@@ -195,6 +244,12 @@ public class TPWSController {
                         // then it checks if it needs to stop
                         stopTrain();
                         break;
+
+                    case "Sensors.WeatherSensor":
+                        String weatherStatus = weatherSensor.detectWeather();
+                        updateGUIWeatherStatus(weatherStatus);
+                        System.out.println("Weather status: " + weatherStatus);
+                        break;
                     default:
                         System.out.println("this default");
                         break;
@@ -204,22 +259,26 @@ public class TPWSController {
         return new Thread((Runnable) sensor);
     }
 
-    public synchronized void getTransmitterData() {
-        //Get the Transmitter broadcast data every 50ms
-        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit from Components.TrackSideTransmitter.win:time(50 milliseconds)";
+    public void getTransmitterData() {
+        // Get the Transmitter broadcast data every 50ms
+        String eplTransmitter = "select segmentIdentifier, signalStatus, speedLimit " +
+                "from Components.TrackSideTransmitter.win:time(50 milliseconds)";
+
         EPStatement transmitterStatement = engine.getEPAdministrator().createEPL(eplTransmitter);
 
-        //this sets the speed
         transmitterStatement.setSubscriber(new Object() {
             public void update(String segIdentifier, String segSignalStatus, double segSpeedLimit) {
-                segmentIdentifier = segIdentifier;
-                speedLimit = segSpeedLimit;
-                signalStatus = segSignalStatus;
-                updateGUITransData(signalStatus, segmentIdentifier);
+                synchronized (transLock) {
+                    segmentIdentifier = segIdentifier;
+                    speedLimit = segSpeedLimit;
+                    signalStatus = segSignalStatus;
+                }
+                updateGUITransData(segSignalStatus, segIdentifier, String.valueOf(segSpeedLimit));
             }
         });
-    }
 
+        transmitterStatement.destroy();
+    }
     /*** Helper method for GUI***/
     private void updateGUISpeed(final double speed) {
         if (mainGUI != null) {
@@ -227,12 +286,40 @@ public class TPWSController {
         }
     }
 
-    private void updateGUITransData(final String signal, final String segmentIdentifier) {
+    private void updateGUITransData(final String signal, final String segmentIdentifier,String limit) {
         if (mainGUI != null) {
             SwingUtilities.invokeLater(() -> {
-                mainGUI.updateSignal(signal);
-                mainGUI.updateSegment(segmentIdentifier);
+                mainGUI.updateSegmentId(segmentIdentifier);
+                mainGUI.updateSegmentSignal(signal);
+                mainGUI.updateSpeedLimit(limit);
+
             });
         }
     }
+
+
+    private void updateGUIBrakeStatus(final String status) {
+        if (mainGUI != null) {
+            SwingUtilities.invokeLater(() -> mainGUI.updateBrakeStatus(status));
+        }
+    }
+
+    private void updateGUIPowerStatus(final String status) {
+        if (mainGUI != null) {
+            SwingUtilities.invokeLater(() -> mainGUI.updatePowerStatus(status));
+        }
+    }
+
+    private void updateGUIWeatherStatus(final String status) {
+        if (mainGUI != null) {
+            SwingUtilities.invokeLater(() -> mainGUI.updateWeatherStatus(status));
+        }
+    }
+
+    private void updateGUISignalStatus(final String status) {
+        if (mainGUI != null) {
+            SwingUtilities.invokeLater(() -> mainGUI.updateSignalStatus(status));
+        }
+    }
+
 }

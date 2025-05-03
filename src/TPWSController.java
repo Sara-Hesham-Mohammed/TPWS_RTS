@@ -20,17 +20,22 @@ public class TPWSController {
     private double safeDistance;
     private volatile double speedLimit; // updated via Esper
     private volatile String signalStatus;
+    private volatile String segmentIdentifier;
 
     // Engine to set up subscribers w kda
     private EPServiceProvider engine = null;
 
-    /**Sensors init**/
+    /**
+     * Sensors init
+     **/
     private final WeatherSensor weatherSensor = new WeatherSensor(1);
     private final BrakeStatusSensor brakeStatusSensor = new BrakeStatusSensor(1, 0);
     private final DistanceSensor distanceSensor = new DistanceSensor(1, 0);
     private final SpeedSensor speedSensor = new SpeedSensor(1, 100);
 
-    /**System Components init**/
+    /**
+     * System Components init
+     **/
     private TrackSideTransmitterEvent transmitterEvent;
     private final EmergencyBrakingSystem brakingSystem = new EmergencyBrakingSystem();
     private final SignalStatusMonitor signalMonitor = new SignalStatusMonitor();
@@ -89,7 +94,7 @@ public class TPWSController {
         transmitterThread.start();
     }
 
-    public void registerEvents(){
+    public void registerEvents() {
         // Registering the events
         engine.getEPAdministrator().getConfiguration().addEventType(SpeedSensor.class);
         engine.getEPAdministrator().getConfiguration().addEventType(BrakeStatusSensor.class);
@@ -115,15 +120,19 @@ public class TPWSController {
     }
 
     public synchronized void activateWarningSound() {
-        if (currentSpeed > speedLimit + 5) {SwingUtilities.invokeLater(() -> {
-            if (alertGUI != null) {
-                alertGUI.showMessage("SPEED WARNING: Exceeding speed limit!");
-                alertGUI.setVisible(true);
-            }
-        });
+        if (currentSpeed > speedLimit + 5) {
+            SwingUtilities.invokeLater(() -> {
+                if (alertGUI != null) {
+                    alertGUI.showMessage("SPEED WARNING: Exceeding speed limit!");
+                    alertGUI.setVisible(true);
+                }
+            });
             buzzer.activateBuzzer();
             System.out.println("BUZZER ACTIVATED. OVER SPEED LIMIT. PLEASE REDUCE SPEED");
-        } else buzzer.stopBuzzer();
+        } else {
+            buzzer.stopBuzzer();
+            alertGUI.setVisible(false);
+        }
 
     }
 
@@ -188,7 +197,6 @@ public class TPWSController {
                         break;
                     default:
                         System.out.println("this default");
-//                        System.out.printf("\n NEW %s READING: %f ", sensorType.toUpperCase(), lastReading);
                         break;
                 }
             }
@@ -203,19 +211,28 @@ public class TPWSController {
 
         //this sets the speed
         transmitterStatement.setSubscriber(new Object() {
-            public void update(String segmentIdentifier, String segSignalStatus, double segSpeedLimit) {
+            public void update(String segIdentifier, String segSignalStatus, double segSpeedLimit) {
+                segmentIdentifier = segIdentifier;
                 speedLimit = segSpeedLimit;
                 signalStatus = segSignalStatus;
-//                System.out.printf("SEG=%s SIG=%s LIM=%f%n", segmentIdentifier, signalStatus, speedLimit);
+                updateGUITransData(signalStatus, segmentIdentifier);
             }
         });
     }
 
-    /*** Helper method for el GUI***/
-
+    /*** Helper method for GUI***/
     private void updateGUISpeed(final double speed) {
         if (mainGUI != null) {
             SwingUtilities.invokeLater(() -> mainGUI.updateSpeed(speed));
+        }
+    }
+
+    private void updateGUITransData(final String signal, final String segmentIdentifier) {
+        if (mainGUI != null) {
+            SwingUtilities.invokeLater(() -> {
+                mainGUI.updateSignal(signal);
+                mainGUI.updateSegment(segmentIdentifier);
+            });
         }
     }
 }

@@ -38,6 +38,7 @@ public class GUI {
         sigVal.setText("--");
         speedGauge.setValue(0);
         speedGauge.setString("0 km/h");
+        speedGauge.setStringPainted(true);
 
         createGui();
     }
@@ -104,17 +105,20 @@ public class GUI {
     }
 
     public void updateSpeed(double speedValue) {
+        System.out.println("Updating speed to: " + speedValue);
         SwingUtilities.invokeLater(() -> {
             speedGauge.setValue((int) speedValue);
-            speedGauge.setString(speedValue + " km/h");
+            speedGauge.setString((int) speedValue + " km/h");
+            System.out.println("Label set to: " + speedGauge.getString());
         });
     }
 
     public void updateSignal(String signalStatus) {
+        System.out.println("Updating signal to: " + signalStatus);
         SwingUtilities.invokeLater(() -> {
             sigVal.setText(signalStatus);
 
-            Color signalColor = switch (signalStatus) {
+            Color signalColor = switch (signalStatus.toUpperCase()) {
                 case "RED" -> new Color(180, 35, 35);
                 case "YELLOW" -> new Color(200, 130, 0);
                 case "GREEN" -> new Color(25, 140, 60);
@@ -126,7 +130,7 @@ public class GUI {
     }
 
 
-    
+
     public void showGUI(String message) {
         System.out.println("Showing GUI with message: " + message); // for debug
         frame.setVisible(true);

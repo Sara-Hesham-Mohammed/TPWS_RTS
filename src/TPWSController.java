@@ -42,25 +42,22 @@ public class TPWSController {
     public TPWSController(String controllerID, EPServiceProvider engine) throws UnsupportedAudioFileException, LineUnavailableException, IOException {
         this.engine = engine;
         this.transmitterEvent = new TrackSideTransmitterEvent();
-        this.alertGUI = new AlertGUI();
-        this.mainGUI = new GUI();
-        this.mainGUI.showGUI("SHOWING GUI IN CONRTOLLER");
-
-        // Registering the events
-        engine.getEPAdministrator().getConfiguration().addEventType(SpeedSensor.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(BrakeStatusSensor.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(DistanceSensor.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(WeatherSensor.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(TrackSideTransmitterEvent.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(TrackSideTransmitter.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(PowerSupplyMonitor.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(SignalStatusMonitor.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(EmergencyBrakingSystem.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(BuzzerEvent.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.class);
-        engine.getEPAdministrator().getConfiguration().addEventType(GPSModule.class);
-
-
+        registerEvents();
+        SwingUtilities.invokeLater(() -> {
+            try {
+                this.alertGUI = new AlertGUI();
+                this.mainGUI = new GUI();
+                this.mainGUI.showGUI("SHOWING GUI IN CONTROLLER");
+            } catch (UnsupportedAudioFileException | LineUnavailableException | IOException e) {
+                e.printStackTrace();
+            }
+        });
+        // Wait senna for GUI init
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         monitorConditions();
     }
 
@@ -92,6 +89,22 @@ public class TPWSController {
         transmitterThread.start();
     }
 
+    public void registerEvents(){
+        // Registering the events
+        engine.getEPAdministrator().getConfiguration().addEventType(SpeedSensor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(BrakeStatusSensor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(DistanceSensor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(WeatherSensor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(TrackSideTransmitterEvent.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(TrackSideTransmitter.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(PowerSupplyMonitor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(SignalStatusMonitor.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(EmergencyBrakingSystem.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(BuzzerEvent.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(WarningBuzzer.class);
+        engine.getEPAdministrator().getConfiguration().addEventType(GPSModule.class);
+    }
+
     /* Synchronization for the stuff that modifies the values/ writes ONLY*/
     public synchronized void checkBrakes() {
         if (brakeStatusSensor.getBrakeStatus()) {
@@ -102,9 +115,12 @@ public class TPWSController {
     }
 
     public synchronized void activateWarningSound() {
-        if (currentSpeed > speedLimit + 5) {
-            alertGUI.showMessage("testing in controller!");
-            alertGUI.setVisible(true);
+        if (currentSpeed > speedLimit + 5) {SwingUtilities.invokeLater(() -> {
+            if (alertGUI != null) {
+                alertGUI.showMessage("SPEED WARNING: Exceeding speed limit!");
+                alertGUI.setVisible(true);
+            }
+        });
             buzzer.activateBuzzer();
             System.out.println("BUZZER ACTIVATED. OVER SPEED LIMIT. PLEASE REDUCE SPEED");
         } else buzzer.stopBuzzer();
@@ -114,6 +130,7 @@ public class TPWSController {
     public synchronized void reduceSpeed() {
         while (currentSpeed > speedLimit + 10) {
             brakingSystem.applyBrakes();
+            updateGUISpeed(currentSpeed);
             currentSpeed -= 10;
             System.out.println("Reducing speed. Brakes engaged.");
         }
@@ -143,22 +160,22 @@ public class TPWSController {
         // Attaching callback to EPL statements
         select_statement.setSubscriber(new Object() {
             public void update(double lastReading) {
-                System.out.printf("\nNEW %s READING: %.2f ", sensorType.toUpperCase(), lastReading);
                 switch (sensorType) {
-                    case "speedSensor":
+                    case "Sensors.SpeedSensor":
                         currentSpeed = lastReading;
                         // Check speed limits and warnings and activate the buzzer if necessary
                         activateWarningSound();
-                        SwingUtilities.invokeLater(() -> mainGUI.updateSpeed(currentSpeed));
+                        System.out.printf("Current speed: " + currentSpeed);
+                        updateGUISpeed(currentSpeed);
                         // reduce speed if necessary
                         reduceSpeed();
                         break;
-                    case "brakeStatusSensor":
+                    case "Sensors.BrakeStatusSensor":
                         if (lastReading != 1) {
                             checkBrakes();
                         }
                         break;
-                    case "distanceSensor":
+                    case "Sensors.DistanceSensor":
                         safeDistance = lastReading;
                         if (safeDistance <= 10) {
                             //can only receive the data if the distance is 10m
@@ -170,7 +187,8 @@ public class TPWSController {
                         stopTrain();
                         break;
                     default:
-                        System.out.printf("\n NEW %s READING: %f ", sensorType.toUpperCase(), lastReading);
+                        System.out.println("this default");
+//                        System.out.printf("\n NEW %s READING: %f ", sensorType.toUpperCase(), lastReading);
                         break;
                 }
             }
@@ -188,9 +206,16 @@ public class TPWSController {
             public void update(String segmentIdentifier, String segSignalStatus, double segSpeedLimit) {
                 speedLimit = segSpeedLimit;
                 signalStatus = segSignalStatus;
-                System.out.printf("SEG=%s SIG=%s LIM=%f%n", segmentIdentifier, signalStatus, speedLimit);
+//                System.out.printf("SEG=%s SIG=%s LIM=%f%n", segmentIdentifier, signalStatus, speedLimit);
             }
         });
     }
 
+    /*** Helper method for el GUI***/
+
+    private void updateGUISpeed(final double speed) {
+        if (mainGUI != null) {
+            SwingUtilities.invokeLater(() -> mainGUI.updateSpeed(speed));
+        }
+    }
 }

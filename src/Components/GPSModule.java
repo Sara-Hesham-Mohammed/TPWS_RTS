@@ -1,3 +1,5 @@
+package Components;
+
 public class GPSModule {
     private double latitude;
     private double longitude;

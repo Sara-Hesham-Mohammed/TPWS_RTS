@@ -1,4 +1,7 @@
+package GUIs;
+
 import Components.TrackSideTransmitter;
+import Components.Timer;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -17,7 +20,7 @@ public class SwingDashboard {
     private final JProgressBar speedGauge = new JProgressBar(0, 200);
 
     /* ── core objects ── */
-    private final Timer                stopwatch = new Timer();
+    private final Timer stopwatch = new Timer();
     private final TrackSideTransmitter tx        =
             new TrackSideTransmitter("01", "S-1A", 100, "GREEN", 3);
 

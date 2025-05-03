@@ -21,6 +21,7 @@ public class GUI {
     private final JLabel timerVal = bigLabel();
     private final JLabel segVal = bigLabel();
     private final JLabel sigVal = badgeLabel(Color.GRAY);
+    private final JLabel newthing = badgeLabel(Color.GRAY);
     private final JProgressBar speedGauge = new JProgressBar(0, 200);
     JFrame frame;
 
@@ -36,6 +37,7 @@ public class GUI {
         timerVal.setText("0 s 000 ms");
         segVal.setText("--");
         sigVal.setText("--");
+        newthing.setText("TRYING");
         speedGauge.setValue(0);
         speedGauge.setString("0 km/h");
         speedGauge.setStringPainted(true);
@@ -93,6 +95,7 @@ public class GUI {
         addRow(card, gbc, "Speed:", speedGauge);
 
         addRow(card, gbc, "Signal:", sigVal);
+        addRow(card, gbc, "NEW THING:", newthing);
 
         frame.setContentPane(card);
         frame.pack();
@@ -114,7 +117,6 @@ public class GUI {
     }
 
     public void updateSignal(String signalStatus) {
-        System.out.println("Updating signal to: " + signalStatus);
         SwingUtilities.invokeLater(() -> {
             sigVal.setText(signalStatus);
 

@@ -1,3 +1,5 @@
+package GUIs;
+import Components.Timer;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
@@ -8,14 +10,14 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Modern screen for the TPWS Timer actor.
+ * Modern screen for the TPWS Components.Timer actor.
  *
  *  • Big digital clock  00:01:23.456
  *  • Slim progress bar  (0-999 ms of current second)
  *  • Start / Stop / Reset buttons
  *  • Updates every 50 ms via the timer's tick-listener
  */
-public class TimerPanel extends JPanel implements Timer.TickListener {
+public class TimerPanel extends JPanel implements Components.Timer.TickListener {
 
     /* ── widgets ── */
     private final JLabel        bigClock = new JLabel("00:00:00.000", SwingConstants.CENTER);
@@ -106,7 +108,7 @@ public class TimerPanel extends JPanel implements Timer.TickListener {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             Timer t = new Timer();
-            JFrame f = new JFrame("Timer Screen");
+            JFrame f = new JFrame("Components.Timer Screen");
             f.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
             f.setContentPane(new TimerPanel(t));
             f.pack();

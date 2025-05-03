@@ -1,6 +1,7 @@
+package Components;
+
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -14,7 +15,7 @@ public class Timer implements AutoCloseable {
     private volatile Instant startTime;
     private final ScheduledExecutorService exec =
             Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "TPWS-Timer");
+                Thread t = new Thread(r, "TPWS-Components.Timer");
                 t.setDaemon(true);
                 return t;
             });

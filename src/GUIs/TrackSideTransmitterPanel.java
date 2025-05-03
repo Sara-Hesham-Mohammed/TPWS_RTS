@@ -1,3 +1,5 @@
+package GUIs;
+
 import Components.TrackSideTransmitter;
 
 import javax.swing.*;
